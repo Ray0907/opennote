@@ -42,6 +42,7 @@ export const SYNC_COLUMNS: Record<SyncTable, string[]> = {
     'sort_key',
     'is_database',
     'db_schema',
+    'props',
     'created_at',
     'updated_at',
     'deleted_at',
@@ -50,7 +51,7 @@ export const SYNC_COLUMNS: Record<SyncTable, string[]> = {
 }
 
 /** JSONB columns that must be serialized when bound as parameters. */
-const JSONB_COLUMNS = new Set(['db_schema', 'content'])
+const JSONB_COLUMNS = new Set(['db_schema', 'props', 'content'])
 
 /**
  * Upsert a full row image into pages/blocks. Overwrites every replicated

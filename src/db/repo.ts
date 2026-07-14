@@ -15,6 +15,7 @@ export interface Page {
   sort_key: string
   is_database: boolean
   db_schema: unknown
+  props: Record<string, unknown> | null
   created_at: string
   updated_at: string
 }
@@ -33,7 +34,7 @@ function uuid(): string {
 
 export async function listPages(db: PGlite): Promise<Page[]> {
   const { rows } = await db.query<Page>(
-    `SELECT id, parent_id, title, icon, sort_key, is_database, db_schema,
+    `SELECT id, parent_id, title, icon, sort_key, is_database, db_schema, props,
             created_at::text, updated_at::text
        FROM pages
       WHERE deleted_at IS NULL
@@ -44,7 +45,7 @@ export async function listPages(db: PGlite): Promise<Page[]> {
 
 export async function getPage(db: PGlite, id: string): Promise<Page | null> {
   const { rows } = await db.query<Page>(
-    `SELECT id, parent_id, title, icon, sort_key, is_database, db_schema,
+    `SELECT id, parent_id, title, icon, sort_key, is_database, db_schema, props,
             created_at::text, updated_at::text
        FROM pages WHERE id = $1 AND deleted_at IS NULL`,
     [id],
@@ -74,6 +75,26 @@ export async function createPage(
   const page = await getPage(db, id)
   if (!page) throw new Error(`createPage: page ${id} vanished after insert`)
   return page
+}
+
+/** Replace a database page's property schema + view configs (M3). */
+export async function setDbSchema(db: PGlite, id: string, schema: unknown): Promise<void> {
+  await db.query(
+    `UPDATE pages SET db_schema = $2, updated_at = now() WHERE id = $1`,
+    [id, JSON.stringify(schema)],
+  )
+}
+
+/** Replace a database row's typed property values (M3). */
+export async function setPageProps(
+  db: PGlite,
+  id: string,
+  props: Record<string, unknown>,
+): Promise<void> {
+  await db.query(
+    `UPDATE pages SET props = $2, updated_at = now() WHERE id = $1`,
+    [id, JSON.stringify(props)],
+  )
 }
 
 export async function renamePage(db: PGlite, id: string, title: string): Promise<void> {

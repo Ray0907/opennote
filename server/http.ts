@@ -32,9 +32,20 @@ function readBody(req: http.IncomingMessage): Promise<string> {
   })
 }
 
+/**
+ * CORS: the renderer is a different origin (vite dev server or file://), and
+ * the sync protocol carries no cookies or credentials, so `*` is safe here.
+ */
+const CORS_HEADERS = {
+  'access-control-allow-origin': '*',
+  'access-control-allow-methods': 'GET, POST, OPTIONS',
+  'access-control-allow-headers': 'content-type',
+} as const
+
 function send(res: http.ServerResponse, status: number, body: unknown): void {
   const json = JSON.stringify(body)
   res.writeHead(status, {
+    ...CORS_HEADERS,
     'content-type': 'application/json',
     'content-length': Buffer.byteLength(json),
   })
@@ -63,6 +74,11 @@ export function createSyncServer(db: Queryable): http.Server {
   return http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? '/', 'http://localhost')
+
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204, CORS_HEADERS)
+        return res.end()
+      }
 
       if (req.method === 'POST' && url.pathname === '/push') {
         let parsed: unknown

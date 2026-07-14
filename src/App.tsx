@@ -38,6 +38,16 @@ export function App({ db }: { db: PGlite }) {
     })
   }, [refreshPages])
 
+  // Remote sync applied changes (main.tsx loop): refresh the page tree.
+  // The open editor keeps local state until the page is reopened — a pulled
+  // remote edit to the *open* page surfaces on next selection (known M2
+  // limit; live editor merge is out of scope until later milestones).
+  useEffect(() => {
+    const onRemote = () => void refreshPages()
+    window.addEventListener('opennote:remote-change', onRemote)
+    return () => window.removeEventListener('opennote:remote-change', onRemote)
+  }, [refreshPages])
+
   const mirrorPage = useCallback(
     async (allPages: Page[], pageId: string, blocks: BNBlock[]) => {
       const page = allPages.find((p) => p.id === pageId)

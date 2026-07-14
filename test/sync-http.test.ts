@@ -98,6 +98,26 @@ describe('sync over HTTP', () => {
     expect(await titles(serverDb)).toEqual([{ id: P1, title: 'once' }])
   })
 
+  it('answers CORS preflight and marks responses cross-origin-safe', async () => {
+    // The renderer is a different origin (vite dev / file://); without these
+    // headers every browser fetch to the sync server is blocked.
+    const preflight = await fetch(`${baseUrl}/push`, {
+      method: 'OPTIONS',
+      headers: {
+        origin: 'http://localhost:5173',
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'content-type',
+      },
+    })
+    expect(preflight.status).toBe(204)
+    expect(preflight.headers.get('access-control-allow-origin')).toBe('*')
+    expect(preflight.headers.get('access-control-allow-methods')).toContain('POST')
+    expect(preflight.headers.get('access-control-allow-headers')).toContain('content-type')
+
+    const pull = await fetch(`${baseUrl}/pull?since=0`)
+    expect(pull.headers.get('access-control-allow-origin')).toBe('*')
+  })
+
   it('rejects malformed input with 400s, not crashes', async () => {
     const bad = await fetch(`${baseUrl}/push`, { method: 'POST', body: 'not json' })
     expect(bad.status).toBe(400)
