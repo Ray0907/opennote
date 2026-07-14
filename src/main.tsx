@@ -4,6 +4,7 @@ import type { PGlite } from '@electric-sql/pglite'
 import { createDb } from './db/db'
 import { initClientSync, syncOnce } from './sync/client'
 import { createHttpTransport } from './sync/http'
+import { emitSyncStatus } from './lib/sync-status'
 import { App } from './App'
 import './styles.css'
 
@@ -37,16 +38,19 @@ function startSyncLoop(db: PGlite): void {
   const tick = async (): Promise<void> => {
     if (inFlight) return
     inFlight = true
+    emitSyncStatus({ phase: 'syncing' })
     try {
       const result = await syncOnce(db, transport)
       if (wasOffline) console.info('sync: back online')
       wasOffline = false
+      emitSyncStatus({ phase: 'synced', lastSyncedAt: Date.now() })
       if (result.applied > 0) {
         window.dispatchEvent(new Event(REMOTE_CHANGE_EVENT))
       }
     } catch (err) {
       if (!wasOffline) console.info('sync: offline (queuing locally)', err)
       wasOffline = true
+      emitSyncStatus({ phase: 'offline' })
     } finally {
       inFlight = false
     }

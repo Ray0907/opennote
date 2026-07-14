@@ -6,7 +6,7 @@
     "colorMeta": {
       "working-blue": { "role": "primary", "displayName": "Working Blue", "canonical": "#2f80ed", "tonalRamp": ["#0a2a55", "#123f80", "#1a55ab", "#2368c9", "#2f80ed", "#6ba4f2", "#a7c8f7", "#e0ecfd"] },
       "ink": { "role": "neutral", "displayName": "Ink", "canonical": "#37352f", "tonalRamp": ["#1c1b17", "#37352f", "#55534b", "#73716a", "#9b9a97", "#c2c1bd", "#e6e4df", "#f7f6f3"] },
-      "muted-ink": { "role": "neutral", "displayName": "Muted Ink", "canonical": "#9b9a97" },
+      "muted-ink": { "role": "neutral", "displayName": "Muted Ink", "canonical": "#6f6e69" },
       "paper": { "role": "neutral", "displayName": "Paper", "canonical": "#ffffff" },
       "desk": { "role": "neutral", "displayName": "Desk", "canonical": "#f7f6f3" },
       "hairline": { "role": "neutral", "displayName": "Hairline", "canonical": "#e6e4df" },
@@ -69,7 +69,7 @@
       "refersTo": "search-dialog",
       "description": "Borderless dialog input with a hairline bottom divider.",
       "html": "<input class=\"ds-search-input\" placeholder=\"Search pages…\" />",
-      "css": ".ds-search-input { width: 320px; border: none; outline: none; padding: 14px 16px; font-size: 15px; border-bottom: 1px solid #eee; color: #37352f; background: #fff; } .ds-search-input::placeholder { color: #9b9a97; } .ds-search-input:focus-visible { border-bottom-color: #2f80ed; }"
+      "css": ".ds-search-input { width: 320px; border: none; outline: none; padding: 14px 16px; font-size: 15px; border-bottom: 1px solid #eee; color: #37352f; background: #fff; } .ds-search-input::placeholder { color: #6f6e69; } .ds-search-input:focus-visible { border-bottom-color: #2f80ed; }"
     },
     {
       "name": "Section Label",

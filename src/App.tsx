@@ -8,6 +8,8 @@ import { Sidebar } from './components/Sidebar'
 import { SearchDialog } from './components/SearchDialog'
 import { EditorPane } from './components/EditorPane'
 import { DatabaseView } from './components/DatabaseView'
+import { TrashDialog } from './components/TrashDialog'
+import { Toast, type ToastState } from './components/Toast'
 import { createDefaultSchema } from './lib/database'
 import { getTemplate } from './lib/templates'
 import { useTheme } from './lib/theme'
@@ -28,6 +30,8 @@ export function App({ db }: { db: PGlite }) {
   const [pages, setPages] = useState<Page[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
+  const [trashOpen, setTrashOpen] = useState(false)
+  const [toast, setToast] = useState<ToastState | null>(null)
   const { pref, resolved, cycleTheme } = useTheme()
   // Last mirror path per page, so renames/moves clean up their old file.
   const mirrorPaths = useRef(new Map<string, string>())
@@ -124,8 +128,24 @@ export function App({ db }: { db: PGlite }) {
     [db, refreshPages, mirrorPage],
   )
 
+  const restorePage = useCallback(
+    async (id: string) => {
+      await repo.restorePage(db, id)
+      const next = await refreshPages()
+      setSelectedId(id)
+      // Re-mirror the restored page (deletePage removed the .md).
+      const restored = next.find((p) => p.id === id)
+      if (restored && !restored.is_database) {
+        const blocks = (await repo.getBlocks(db, id)).map((r) => r.content)
+        await mirrorPage(next, id, blocks)
+      }
+    },
+    [db, refreshPages, mirrorPage],
+  )
+
   const handleDelete = useCallback(
     async (id: string) => {
+      const title = pages.find((p) => p.id === id)?.title || 'Untitled'
       await repo.deletePage(db, id)
       const relPath = mirrorPaths.current.get(id)
       if (relPath) {
@@ -134,8 +154,13 @@ export function App({ db }: { db: PGlite }) {
       }
       const next = await refreshPages()
       setSelectedId((cur) => (cur === id ? (next[0]?.id ?? null) : cur))
+      setToast({
+        message: `Deleted "${title}"`,
+        actionLabel: 'Undo',
+        onAction: () => void restorePage(id),
+      })
     },
-    [db, refreshPages, shell],
+    [db, pages, refreshPages, shell, restorePage],
   )
 
   const handleDocumentSaved = useCallback(
@@ -197,6 +222,7 @@ export function App({ db }: { db: PGlite }) {
         }}
         themePref={pref}
         onCycleTheme={cycleTheme}
+        onOpenTrash={() => setTrashOpen(true)}
       />
       <main className="editor-area">
         {selectedPage?.is_database ? (
@@ -246,6 +272,16 @@ export function App({ db }: { db: PGlite }) {
         onClose={() => setSearchOpen(false)}
         onOpenPage={setSelectedId}
       />
+      <TrashDialog
+        db={db}
+        open={trashOpen}
+        onClose={() => setTrashOpen(false)}
+        onRestored={(id) => {
+          setTrashOpen(false)
+          setSelectedId(id)
+        }}
+      />
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
   )
 }

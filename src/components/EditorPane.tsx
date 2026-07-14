@@ -3,7 +3,8 @@ import type { PGlite } from '@electric-sql/pglite'
 import { useCreateBlockNote } from '@blocknote/react'
 import { BlockNoteView } from '@blocknote/mantine'
 import type { PartialBlock } from '@blocknote/core'
-import '@blocknote/core/fonts/inter.css'
+// No Inter import: the editor uses the app's system font stack (One Voice
+// Rule) via the --bn-font-family override in styles.css.
 import '@blocknote/mantine/style.css'
 import type { Page } from '../db/repo'
 import * as repo from '../db/repo'
@@ -104,6 +105,29 @@ function Editor({ page, theme, initialContent, onRename, onDocumentSaved, onSetI
 
   const [iconPickerOpen, setIconPickerOpen] = useState(false)
   const [coverPickerOpen, setCoverPickerOpen] = useState(false)
+  const headerRef = useRef<HTMLDivElement>(null)
+
+  // Dismiss the icon/cover pickers on Escape or an outside click.
+  useEffect(() => {
+    if (!iconPickerOpen && !coverPickerOpen) return
+    const close = () => {
+      setIconPickerOpen(false)
+      setCoverPickerOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close()
+    }
+    const onClick = (e: MouseEvent) => {
+      if (headerRef.current && !headerRef.current.contains(e.target as Node)) close()
+    }
+    document.addEventListener('keydown', onKey)
+    const id = window.setTimeout(() => document.addEventListener('mousedown', onClick), 0)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('mousedown', onClick)
+      window.clearTimeout(id)
+    }
+  }, [iconPickerOpen, coverPickerOpen])
 
   return (
     <div className="editor-pane">
@@ -115,7 +139,7 @@ function Editor({ page, theme, initialContent, onRename, onDocumentSaved, onSetI
           </div>
         </div>
       )}
-      <div className="page-header">
+      <div className="page-header" ref={headerRef}>
         {page.icon && (
           <button
             className="page-icon"
@@ -169,6 +193,7 @@ function Editor({ page, theme, initialContent, onRename, onDocumentSaved, onSetI
               <button
                 key={key}
                 title={key}
+                aria-label={`${key} cover`}
                 style={{ background: css }}
                 onClick={() => {
                   onSetCover(page.id, key)

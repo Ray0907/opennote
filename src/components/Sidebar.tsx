@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import type { Page } from '../db/repo'
 import { TEMPLATES } from '../lib/templates'
+import { SyncStatusBar } from './SyncStatusBar'
 
 interface SidebarProps {
   pages: Page[]
@@ -17,6 +18,7 @@ interface SidebarProps {
   /** Current theme preference ('system' | 'light' | 'dark') and its cycler. */
   themePref: 'system' | 'light' | 'dark'
   onCycleTheme: () => void
+  onOpenTrash: () => void
 }
 
 interface TreeNodeProps
@@ -29,6 +31,7 @@ interface TreeNodeProps
     | 'onExport'
     | 'themePref'
     | 'onCycleTheme'
+    | 'onOpenTrash'
   > {
   page: Page
   childrenOf: Map<string | null, Page[]>
@@ -42,7 +45,16 @@ function TreeNode({ page, childrenOf, depth, selectedId, onSelect, onCreate, onD
       <div
         className={`tree-item${page.id === selectedId ? ' selected' : ''}`}
         style={{ paddingLeft: 8 + depth * 14 }}
+        role="button"
+        tabIndex={0}
+        aria-current={page.id === selectedId ? 'page' : undefined}
         onClick={() => onSelect(page.id)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onSelect(page.id)
+          }
+        }}
       >
         <span className="tree-title">
           {page.icon ? `${page.icon} ` : ''}
@@ -50,6 +62,7 @@ function TreeNode({ page, childrenOf, depth, selectedId, onSelect, onCreate, onD
         </span>
         <span className="tree-actions">
           <button
+            aria-label={page.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
             title={page.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
             onClick={(e) => {
               e.stopPropagation()
@@ -59,6 +72,7 @@ function TreeNode({ page, childrenOf, depth, selectedId, onSelect, onCreate, onD
             {page.is_favorite ? '★' : '☆'}
           </button>
           <button
+            aria-label="Add sub-page"
             title="Add sub-page"
             onClick={(e) => {
               e.stopPropagation()
@@ -68,6 +82,7 @@ function TreeNode({ page, childrenOf, depth, selectedId, onSelect, onCreate, onD
             +
           </button>
           <button
+            aria-label="Delete page"
             title="Delete page"
             onClick={(e) => {
               e.stopPropagation()
@@ -108,6 +123,7 @@ export function Sidebar({
   onToggleFavorite,
   themePref,
   onCycleTheme,
+  onOpenTrash,
 }: SidebarProps) {
   const [showTemplates, setShowTemplates] = useState(false)
   const childrenOf = new Map<string | null, Page[]>()
@@ -148,7 +164,16 @@ export function Sidebar({
               key={page.id}
               className={`tree-item${page.id === selectedId ? ' selected' : ''}`}
               style={{ paddingLeft: 8 }}
+              role="button"
+              tabIndex={0}
+              aria-current={page.id === selectedId ? 'page' : undefined}
               onClick={() => onSelect(page.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  onSelect(page.id)
+                }
+              }}
             >
               <span className="tree-title">
                 {page.icon ? `${page.icon} ` : ''}
@@ -156,6 +181,7 @@ export function Sidebar({
               </span>
               <span className="tree-actions">
                 <button
+                  aria-label="Remove from favorites"
                   title="Remove from favorites"
                   onClick={(e) => {
                     e.stopPropagation()
@@ -203,6 +229,7 @@ export function Sidebar({
           ))}
         </div>
       )}
+      <SyncStatusBar />
       <div className="sidebar-footer">
         <button title="Create page from template" onClick={() => setShowTemplates((v) => !v)}>
           Templates
@@ -216,6 +243,9 @@ export function Sidebar({
           onClick={() => onExport?.()}
         >
           Export
+        </button>
+        <button title="View deleted pages" onClick={() => onOpenTrash()}>
+          Trash
         </button>
       </div>
     </aside>

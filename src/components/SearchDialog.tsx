@@ -52,13 +52,26 @@ export function SearchDialog({
     onClose()
   }
 
+  const activeId = hits[active] ? `search-hit-${hits[active].pageId}` : undefined
+
   return (
     <div className="search-overlay" onMouseDown={onClose}>
-      <div className="search-dialog" onMouseDown={(e) => e.stopPropagation()}>
+      <div
+        className="search-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Search pages"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <input
           ref={inputRef}
           className="search-input"
           placeholder="Search pages…"
+          aria-label="Search pages"
+          role="combobox"
+          aria-expanded={hits.length > 0}
+          aria-controls="search-results"
+          aria-activedescendant={activeId}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
@@ -72,10 +85,13 @@ export function SearchDialog({
             } else if (e.key === 'Enter') pick(hits[active])
           }}
         />
-        <ul className="search-results">
+        <ul className="search-results" id="search-results" role="listbox">
           {hits.map((h, i) => (
             <li
               key={h.pageId}
+              id={`search-hit-${h.pageId}`}
+              role="option"
+              aria-selected={i === active}
               className={'search-hit' + (i === active ? ' active' : '')}
               onMouseEnter={() => setActive(i)}
               onClick={() => pick(h)}

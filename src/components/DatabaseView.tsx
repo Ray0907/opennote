@@ -12,9 +12,9 @@ import {
   type DbSchema,
   type PropertyDef,
   type PropertyType,
-  type RollupFn,
   type ViewDef,
 } from '../lib/database'
+import { AddPropertyPopover } from './AddPropertyPopover'
 
 interface DatabaseViewProps {
   db: PGlite
@@ -26,13 +26,8 @@ interface DatabaseViewProps {
   onOpenRow: (id: string) => void
 }
 
-const PROPERTY_TYPES: PropertyType[] = [
-  'text', 'number', 'select', 'date', 'checkbox',
-  'multi-select', 'url', 'relation', 'rollup',
-]
-const ROLLUP_FNS: RollupFn[] = ['count', 'sum', 'avg', 'min', 'max', 'show']
-
 export function DatabaseView({ db, page, pages, onChanged, onOpenRow }: DatabaseViewProps) {
+  const [addingProperty, setAddingProperty] = useState(false)
   const schema = useMemo(() => {
     // A database page created before its schema was written gets the default.
     const raw = page.db_schema
@@ -64,57 +59,8 @@ export function DatabaseView({ db, page, pages, onChanged, onOpenRow }: Database
     await onChanged()
   }
 
-  const addProperty = async () => {
-    const name = window.prompt('Property name?')
-    if (!name) return
-    const type = window.prompt(`Type? (${PROPERTY_TYPES.join(' / ')})`, 'text')
-    if (!type || !PROPERTY_TYPES.includes(type as PropertyType)) return
-    const def: PropertyDef = { id: localId('prop'), name, type: type as PropertyType }
-    if (def.type === 'select' || def.type === 'multi-select') {
-      const opts = window.prompt('Options (comma-separated)?', 'Todo, Doing, Done')
-      def.options = (opts ?? '').split(',').map((s) => s.trim()).filter((s) => s !== '')
-      if (def.options.length === 0) return
-    }
-    if (def.type === 'relation') {
-      const dbs = pages.filter((p) => p.is_database && p.id !== page.id)
-      if (dbs.length === 0) {
-        window.alert('No other database pages to relate to.')
-        return
-      }
-      const target = window.prompt(
-        `Target database?\n${dbs.map((d, i) => `${i + 1}. ${d.title || 'Untitled'}`).join('\n')}`,
-        '1',
-      )
-      const idx = Number(target) - 1
-      if (!Number.isInteger(idx) || idx < 0 || idx >= dbs.length) return
-      def.relationTarget = dbs[idx].id
-    }
-    if (def.type === 'rollup') {
-      const rels = schema.properties.filter((p) => p.type === 'relation')
-      if (rels.length === 0) {
-        window.alert('Add a relation property first — rollups aggregate through a relation.')
-        return
-      }
-      const rel = window.prompt(
-        `Through relation?\n${rels.map((r, i) => `${i + 1}. ${r.name}`).join('\n')}`,
-        '1',
-      )
-      const rIdx = Number(rel) - 1
-      if (!Number.isInteger(rIdx) || rIdx < 0 || rIdx >= rels.length) return
-      def.rollupRelation = rels[rIdx].id
-      const targetDb = pages.find((p) => p.id === rels[rIdx].relationTarget)
-      const targetSchema = targetDb?.db_schema ? normalizeSchema(targetDb.db_schema) : null
-      const targetProps = [{ id: 'title', name: 'Title' }, ...(targetSchema?.properties ?? [])]
-      const tp = window.prompt(
-        `Target property?\n${targetProps.map((r, i) => `${i + 1}. ${r.name}`).join('\n')}`,
-        '1',
-      )
-      const tIdx = Number(tp) - 1
-      if (!Number.isInteger(tIdx) || tIdx < 0 || tIdx >= targetProps.length) return
-      def.rollupProperty = targetProps[tIdx].id
-      const fn = window.prompt(`Aggregate? (${ROLLUP_FNS.join(' / ')})`, 'show')
-      def.rollupFn = ROLLUP_FNS.includes(fn as RollupFn) ? (fn as RollupFn) : 'show'
-    }
+  const submitProperty = async (def: PropertyDef) => {
+    setAddingProperty(false)
     await saveSchema({ ...schema, properties: [...schema.properties, def] })
   }
 
@@ -159,7 +105,7 @@ export function DatabaseView({ db, page, pages, onChanged, onOpenRow }: Database
             await onChanged()
           }}
           onAddRow={addRow}
-          onAddProperty={addProperty}
+          onAddProperty={() => setAddingProperty(true)}
         />
       )}
       {view.kind === 'board' && (
@@ -167,6 +113,17 @@ export function DatabaseView({ db, page, pages, onChanged, onOpenRow }: Database
       )}
       {view.kind === 'calendar' && (
         <CalendarView schema={schema} view={view} rows={rows} onOpenRow={onOpenRow} />
+      )}
+      {addingProperty && (
+        <div className="prop-popover-anchor">
+          <AddPropertyPopover
+            currentPageId={page.id}
+            pages={pages}
+            existingRelations={schema.properties.filter((p) => p.type === 'relation')}
+            onSubmit={(def) => void submitProperty(def)}
+            onClose={() => setAddingProperty(false)}
+          />
+        </div>
       )}
     </div>
   )
@@ -184,7 +141,7 @@ interface TableViewProps {
   onRenameRow: (id: string, title: string) => Promise<void>
   onDeleteRow: (id: string) => Promise<void>
   onAddRow: () => Promise<void>
-  onAddProperty: () => Promise<void>
+  onAddProperty: () => void
 }
 
 function TableView(p: TableViewProps) {
@@ -197,7 +154,7 @@ function TableView(p: TableViewProps) {
             <th key={prop.id}>{prop.name}</th>
           ))}
           <th>
-            <button title="Add property" onClick={() => void p.onAddProperty()}>
+            <button title="Add property" onClick={() => p.onAddProperty()}>
               +
             </button>
           </th>

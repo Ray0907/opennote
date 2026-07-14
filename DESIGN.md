@@ -4,7 +4,7 @@ description: A local-first, data-sovereign Notion-style workspace
 colors:
   working-blue: "#2f80ed"
   ink: "#37352f"
-  muted-ink: "#9b9a97"
+  muted-ink: "#6f6e69"
   paper: "#ffffff"
   desk: "#f7f6f3"
   hairline: "#e6e4df"
@@ -13,6 +13,7 @@ colors:
   selection-tint: "#e3f0f8"
   selection-ink: "#1f5f8b"
   error: "#c0392b"
+  success: "#2f9e44"
   dark-paper: "#1f1f1e"
   dark-desk: "#191918"
   dark-hairline: "#33322f"
@@ -128,13 +129,13 @@ Warm-neutral paper tones carrying a single functional blue.
 - **Working Blue** (#2f80ed): Links, wiki-links, primary actions, focus
   rings, sync-state indicators. Never decoration; if nothing is selected or
   actionable, the screen contains no blue.
-- **Selection Tint / Selection Ink** (#e3f0f8 / #337ea9): Chosen options in
+- **Selection Tint / Selection Ink** (#e3f0f8 / #1f5f8b): Chosen options in
   multi-select and relation cells — Working Blue's quiet resting form.
 
 ### Neutral
 - **Ink** (#37352f): All body and heading text. A warm near-black, never
   pure #000.
-- **Muted Ink** (#9b9a97): Placeholders, empty states, timestamps, metadata.
+- **Muted Ink** (#6f6e69): Placeholders, empty states, timestamps, metadata.
   For text that must actually be read, use Ink — Muted Ink is for text the
   user is allowed to ignore.
 - **Paper** (#ffffff): The content surface. Pages, cards, dialogs, inputs.
