@@ -1,8 +1,14 @@
 /**
  * Bridge to the native shell (Electron preload). The web core only ever
  * talks to this interface, never to Electron directly, so it also runs in a
- * plain browser (mirror becomes a no-op there).
+ * plain browser (mirror becomes a no-op there; import/export fall back to
+ * the browser's download / file-picker mechanisms).
  */
+export interface ImportedFile {
+  name: string
+  content: string
+}
+
 export interface ShellApi {
   /** Atomically write a mirror file, path relative to the vault root. */
   writeMirror(relPath: string, content: string): Promise<void>
@@ -10,6 +16,10 @@ export interface ShellApi {
   deleteMirror(relPath: string): Promise<void>
   /** Absolute path of the vault folder (for display). */
   vaultPath(): Promise<string>
+  /** Save-dialog + write. Resolves to the chosen path, or null if cancelled. */
+  exportMarkdown(defaultName: string, content: string): Promise<string | null>
+  /** Open-dialog + read .md files. Resolves to files, or null if cancelled. */
+  importMarkdown(): Promise<ImportedFile[] | null>
 }
 
 const noopShell: ShellApi = {
@@ -21,6 +31,37 @@ const noopShell: ShellApi = {
   },
   async vaultPath() {
     return '(mirror disabled outside the desktop app)'
+  },
+  /** Browser fallback: trigger a download of the .md file. */
+  async exportMarkdown(defaultName, content) {
+    const blob = new Blob([content], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = defaultName
+    a.click()
+    URL.revokeObjectURL(url)
+    return defaultName
+  },
+  /** Browser fallback: hidden <input type="file"> picker. */
+  importMarkdown() {
+    return new Promise((resolve) => {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = '.md,.markdown,.txt'
+      input.multiple = true
+      input.onchange = async () => {
+        const files = Array.from(input.files ?? [])
+        if (files.length === 0) return resolve(null)
+        resolve(
+          await Promise.all(
+            files.map(async (f) => ({ name: f.name, content: await f.text() })),
+          ),
+        )
+      }
+      input.oncancel = () => resolve(null)
+      input.click()
+    })
   },
 }
 

@@ -3,8 +3,9 @@ import type { PGlite } from '@electric-sql/pglite'
 import type { Page } from './db/repo'
 import * as repo from './db/repo'
 import { getShell } from './shell'
-import { pageToMarkdown, sanitizeFileName, type BNBlock } from './lib/markdown'
+import { markdownToPage, pageToMarkdown, sanitizeFileName, type BNBlock } from './lib/markdown'
 import { Sidebar } from './components/Sidebar'
+import { SearchDialog } from './components/SearchDialog'
 import { EditorPane } from './components/EditorPane'
 import { DatabaseView } from './components/DatabaseView'
 import { createDefaultSchema } from './lib/database'
@@ -24,6 +25,7 @@ export function mirrorPathFor(pages: Page[], pageId: string): string {
 export function App({ db }: { db: PGlite }) {
   const [pages, setPages] = useState<Page[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [searchOpen, setSearchOpen] = useState(false)
   // Last mirror path per page, so renames/moves clean up their old file.
   const mirrorPaths = useRef(new Map<string, string>())
   const shell = useMemo(() => getShell(), [])
@@ -49,6 +51,18 @@ export function App({ db }: { db: PGlite }) {
     window.addEventListener('opennote:remote-change', onRemote)
     return () => window.removeEventListener('opennote:remote-change', onRemote)
   }, [refreshPages])
+
+  // Cmd/Ctrl+K opens quick search from anywhere (including the editor).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setSearchOpen((v) => !v)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   const mirrorPage = useCallback(
     async (allPages: Page[], pageId: string, blocks: BNBlock[]) => {
@@ -116,6 +130,36 @@ export function App({ db }: { db: PGlite }) {
 
   const selectedPage = pages.find((p) => p.id === selectedId) ?? null
 
+  /** M4 export: current (non-database) page → .md via the shell save dialog. */
+  const handleExport = useCallback(async () => {
+    if (!selectedPage || selectedPage.is_database) return
+    const blocks = (await repo.getBlocks(db, selectedPage.id)).map((r) => r.content)
+    await shell.exportMarkdown(
+      `${sanitizeFileName(selectedPage.title)}.md`,
+      pageToMarkdown(selectedPage, blocks),
+    )
+  }, [db, shell, selectedPage])
+
+  /** M4 import: .md files → new top-level pages (title from front-matter/H1). */
+  const handleImport = useCallback(async () => {
+    const files = await shell.importMarkdown()
+    if (!files || files.length === 0) return
+    let lastId: string | null = null
+    for (const file of files) {
+      const fallback = file.name.replace(/\.(md|markdown|txt)$/i, '') || 'Imported page'
+      const { title, blocks } = markdownToPage(file.content, fallback)
+      const page = await repo.createPage(db, { parentId: null, title })
+      await repo.savePageBlocks(db, page.id, blocks)
+      lastId = page.id
+    }
+    const next = await refreshPages()
+    if (lastId) {
+      setSelectedId(lastId)
+      const blocks = (await repo.getBlocks(db, lastId)).map((r) => r.content)
+      await mirrorPage(next, lastId, blocks)
+    }
+  }, [db, shell, refreshPages, mirrorPage])
+
   return (
     <div className="app">
       <Sidebar
@@ -125,6 +169,10 @@ export function App({ db }: { db: PGlite }) {
         onCreate={handleCreate}
         onCreateDatabase={() => void handleCreateDatabase()}
         onDelete={handleDelete}
+        onImport={() => void handleImport()}
+        onExport={
+          selectedPage && !selectedPage.is_database ? () => void handleExport() : null
+        }
       />
       <main className="editor-area">
         {selectedPage?.is_database ? (
@@ -161,6 +209,12 @@ export function App({ db }: { db: PGlite }) {
           </div>
         )}
       </main>
+      <SearchDialog
+        db={db}
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        onOpenPage={setSelectedId}
+      />
     </div>
   )
 }

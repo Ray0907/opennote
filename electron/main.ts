@@ -3,7 +3,7 @@
  * Responsibilities: one window, and the Markdown-mirror file IPC.
  * No application logic belongs here.
  */
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import * as path from 'node:path'
 import * as fs from 'node:fs/promises'
 
@@ -42,6 +42,42 @@ ipcMain.handle('mirror:delete', async (_event, relPath: string) => {
 })
 
 ipcMain.handle('vault:path', async () => vaultDir())
+
+/** M4 export: save-dialog + write. Returns the chosen path, or null if cancelled. */
+ipcMain.handle(
+  'export:markdown',
+  async (event, defaultName: string, content: string): Promise<string | null> => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return null
+    const { canceled, filePath } = await dialog.showSaveDialog(win, {
+      defaultPath: defaultName,
+      filters: [{ name: 'Markdown', extensions: ['md'] }],
+    })
+    if (canceled || !filePath) return null
+    await atomicWrite(filePath, content)
+    return filePath
+  },
+)
+
+/** M4 import: open-dialog + read. Returns [{name, content}], or null if cancelled. */
+ipcMain.handle(
+  'import:markdown',
+  async (event): Promise<Array<{ name: string; content: string }> | null> => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return null
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }],
+    })
+    if (canceled || filePaths.length === 0) return null
+    return Promise.all(
+      filePaths.map(async (p) => ({
+        name: path.basename(p),
+        content: await fs.readFile(p, 'utf8'),
+      })),
+    )
+  },
+)
 
 function createWindow(): void {
   const win = new BrowserWindow({

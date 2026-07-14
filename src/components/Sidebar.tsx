@@ -8,9 +8,13 @@ interface SidebarProps {
   onCreate: (parentId: string | null) => void
   onCreateDatabase: () => void
   onDelete: (id: string) => void
+  onImport: () => void
+  /** Export the selected page; null disables the button (nothing exportable). */
+  onExport: (() => void) | null
 }
 
-interface TreeNodeProps extends Omit<SidebarProps, 'pages' | 'onCreateDatabase'> {
+interface TreeNodeProps
+  extends Omit<SidebarProps, 'pages' | 'onCreateDatabase' | 'onImport' | 'onExport'> {
   page: Page
   childrenOf: Map<string | null, Page[]>
   depth: number
@@ -66,7 +70,16 @@ function TreeNode({ page, childrenOf, depth, selectedId, onSelect, onCreate, onD
   )
 }
 
-export function Sidebar({ pages, selectedId, onSelect, onCreate, onCreateDatabase, onDelete }: SidebarProps) {
+export function Sidebar({
+  pages,
+  selectedId,
+  onSelect,
+  onCreate,
+  onCreateDatabase,
+  onDelete,
+  onImport,
+  onExport,
+}: SidebarProps) {
   const childrenOf = new Map<string | null, Page[]>()
   for (const page of pages) {
     const key = page.parent_id
@@ -101,6 +114,18 @@ export function Sidebar({ pages, selectedId, onSelect, onCreate, onCreateDatabas
         ))}
         {roots.length === 0 && <div className="tree-empty">No pages yet</div>}
       </nav>
+      <div className="sidebar-footer">
+        <button title="Import Markdown files" onClick={() => onImport()}>
+          Import
+        </button>
+        <button
+          title={onExport ? 'Export current page as Markdown' : 'Select a page to export'}
+          disabled={!onExport}
+          onClick={() => onExport?.()}
+        >
+          Export
+        </button>
+      </div>
     </aside>
   )
 }

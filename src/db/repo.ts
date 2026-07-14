@@ -7,6 +7,7 @@ import type { PGlite, Transaction } from '@electric-sql/pglite'
 import type { Queryable } from '../../shared/sync'
 import { keyBetween } from '../lib/sortkey'
 import { extractWikiLinks } from '../lib/wikilinks'
+import { extractPlainText, makeSnippet } from '../lib/plaintext'
 import type { BNBlock } from '../lib/markdown'
 
 export interface Page {
@@ -352,4 +353,76 @@ export async function getBacklinks(db: PGlite, pageId: string): Promise<Page[]> 
     [pageId],
   )
   return rows
+}
+
+export interface SearchHit {
+  pageId: string
+  title: string
+  snippet: string
+  matchKind: 'title' | 'content'
+}
+
+/** Escape ILIKE metacharacters so user input is a literal substring match. */
+function escapeLike(q: string): string {
+  return q.replace(/[\\%_]/g, (m) => '\\' + m)
+}
+
+/**
+ * Substring search over page titles and block text. Plain ILIKE (no
+ * pg_trgm extension needed) so CJK and Latin both match by substring on
+ * PGlite and server Postgres identically. Title hits rank before content
+ * hits; within each group, most recently updated first.
+ *
+ * Content matching is two-pass: content::text ILIKE coarse-filters in SQL
+ * (may match JSON keys), then extractPlainText verifies precisely in JS
+ * and builds the snippet.
+ */
+export async function searchPages(
+  db: PGlite,
+  query: string,
+  limit = 20,
+): Promise<SearchHit[]> {
+  const q = query.trim()
+  if (!q) return []
+  const pattern = `%${escapeLike(q)}%`
+  const qLower = q.toLowerCase()
+  const hits: SearchHit[] = []
+  const seen = new Set<string>()
+
+  const { rows: titleRows } = await db.query<{ id: string; title: string }>(
+    `SELECT id, title FROM pages
+      WHERE deleted_at IS NULL AND title ILIKE $1
+      ORDER BY updated_at DESC, id LIMIT $2`,
+    [pattern, limit],
+  )
+  for (const r of titleRows) {
+    seen.add(r.id)
+    hits.push({ pageId: r.id, title: r.title, snippet: '', matchKind: 'title' })
+  }
+  if (hits.length >= limit) return hits.slice(0, limit)
+
+  // Coarse SQL prefilter; cap candidates to bound the JS verification pass.
+  const { rows: candRows } = await db.query<{ id: string; title: string }>(
+    `SELECT DISTINCT p.id, p.title, p.updated_at
+       FROM pages p JOIN blocks b ON b.page_id = p.id
+      WHERE p.deleted_at IS NULL AND b.deleted_at IS NULL
+        AND b.content::text ILIKE $1
+      ORDER BY p.updated_at DESC, p.id LIMIT $2`,
+    [pattern, limit * 3],
+  )
+  for (const r of candRows) {
+    if (hits.length >= limit) break
+    if (seen.has(r.id)) continue
+    const blocks = await getBlocks(db, r.id)
+    const text = extractPlainText(blocks.map((b) => b.content))
+    if (!text.toLowerCase().includes(qLower)) continue // JSON-key false positive
+    seen.add(r.id)
+    hits.push({
+      pageId: r.id,
+      title: r.title,
+      snippet: makeSnippet(text, q),
+      matchKind: 'content',
+    })
+  }
+  return hits
 }
