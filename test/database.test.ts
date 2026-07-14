@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   coerceValue,
+  computeRollup,
   createDefaultSchema,
   formatValue,
   localId,
@@ -73,5 +74,30 @@ describe('database schema helpers', () => {
     expect(formatValue('checkbox', true)).toBe('true')
     expect(formatValue('date', null)).toBe('')
     expect(formatValue('select', undefined)).toBe('')
+  })
+
+  it('coerceValue splits multi-select and relation into trimmed arrays', () => {
+    expect(coerceValue('multi-select', 'a, b ,c')).toEqual(['a', 'b', 'c'])
+    expect(coerceValue('multi-select', ' , ,')).toBeNull()
+    expect(coerceValue('multi-select', '')).toBeNull()
+    expect(coerceValue('relation', 'p1,p2')).toEqual(['p1', 'p2'])
+    expect(coerceValue('rollup', 'anything')).toBeNull()
+  })
+
+  it('formatValue joins arrays and drops non-strings', () => {
+    expect(formatValue('multi-select', ['a', 'b'])).toBe('a, b')
+    expect(formatValue('multi-select', ['a', 3, 'b'])).toBe('a, b')
+    expect(formatValue('multi-select', 'not-array')).toBe('')
+    expect(formatValue('relation', ['p1'])).toBe('p1')
+  })
+
+  it('computeRollup aggregates', () => {
+    expect(computeRollup('count', [1, null, 'x', undefined])).toBe('2')
+    expect(computeRollup('sum', [1, 2, 'x', null])).toBe('3')
+    expect(computeRollup('avg', [2, 4])).toBe('3')
+    expect(computeRollup('min', [5, 2, 9])).toBe('2')
+    expect(computeRollup('max', [5, 2, 9])).toBe('9')
+    expect(computeRollup('sum', ['a', null])).toBe('')
+    expect(computeRollup('show', ['a', ['b', 'c'], null, 7])).toBe('a, b, c, 7')
   })
 })

@@ -7,14 +7,26 @@
  * ordinary page LWW path — no new sync machinery.
  */
 
-export type PropertyType = 'text' | 'number' | 'select' | 'date' | 'checkbox'
+export type PropertyType =
+  | 'text' | 'number' | 'select' | 'date' | 'checkbox'
+  | 'multi-select' | 'url' | 'relation' | 'rollup'
+
+export type RollupFn = 'count' | 'sum' | 'avg' | 'min' | 'max' | 'show'
 
 export interface PropertyDef {
   id: string
   name: string
   type: PropertyType
-  /** Option labels, only meaningful for type 'select'. */
+  /** Option labels, for type 'select' and 'multi-select'. */
   options?: string[]
+  /** relation: page id of the target database. */
+  relationTarget?: string
+  /** rollup: id of the relation property (on this database) to follow. */
+  rollupRelation?: string
+  /** rollup: property id on the target database to aggregate. */
+  rollupProperty?: string
+  /** rollup: aggregation. Default 'show'. */
+  rollupFn?: RollupFn
 }
 
 export type ViewKind = 'table' | 'board' | 'calendar'
@@ -64,10 +76,18 @@ export function normalizeSchema(raw: unknown): DbSchema {
         if (typeof id !== 'string' || typeof name !== 'string') continue
         if (!isPropertyType(type)) continue
         const def: PropertyDef = { id, name, type }
-        if (type === 'select') {
+        if (type === 'select' || type === 'multi-select') {
           def.options = Array.isArray(p.options)
             ? p.options.filter((o): o is string => typeof o === 'string')
             : []
+        }
+        if (type === 'relation' && typeof p.relationTarget === 'string') {
+          def.relationTarget = p.relationTarget
+        }
+        if (type === 'rollup') {
+          if (typeof p.rollupRelation === 'string') def.rollupRelation = p.rollupRelation
+          if (typeof p.rollupProperty === 'string') def.rollupProperty = p.rollupProperty
+          def.rollupFn = isRollupFn(p.rollupFn) ? p.rollupFn : 'show'
         }
         out.properties.push(def)
       }
@@ -88,13 +108,25 @@ export function normalizeSchema(raw: unknown): DbSchema {
   return out
 }
 
+const PROPERTY_TYPES: readonly PropertyType[] = [
+  'text', 'number', 'select', 'date', 'checkbox',
+  'multi-select', 'url', 'relation', 'rollup',
+]
+
 function isPropertyType(t: unknown): t is PropertyType {
-  return t === 'text' || t === 'number' || t === 'select' || t === 'date' || t === 'checkbox'
+  return typeof t === 'string' && (PROPERTY_TYPES as readonly string[]).includes(t)
+}
+
+const ROLLUP_FNS: readonly RollupFn[] = ['count', 'sum', 'avg', 'min', 'max', 'show']
+
+function isRollupFn(f: unknown): f is RollupFn {
+  return typeof f === 'string' && (ROLLUP_FNS as readonly string[]).includes(f)
 }
 
 /** Coerce a raw cell edit (always a string from <input>) to the property's storage type. */
 export function coerceValue(type: PropertyType, raw: string | boolean): unknown {
   if (type === 'checkbox') return raw === true || raw === 'true'
+  if (type === 'rollup') return null // computed, never stored
   if (typeof raw !== 'string') return null
   const s = raw.trim()
   if (s === '') return null
@@ -102,7 +134,11 @@ export function coerceValue(type: PropertyType, raw: string | boolean): unknown 
     const n = Number(s)
     return Number.isFinite(n) ? n : null
   }
-  return s // text, select, date (ISO yyyy-mm-dd from <input type=date>)
+  if (type === 'multi-select' || type === 'relation') {
+    const items = s.split(',').map((x) => x.trim()).filter((x) => x !== '')
+    return items.length > 0 ? items : null
+  }
+  return s // text, select, date (ISO yyyy-mm-dd from <input type=date>), url
 }
 
 /** Render a stored value for display/editing. */
@@ -110,5 +146,27 @@ export function formatValue(type: PropertyType, value: unknown): string {
   if (value === null || value === undefined) return ''
   if (type === 'checkbox') return value === true ? 'true' : 'false'
   if (type === 'number') return typeof value === 'number' ? String(value) : ''
+  if (type === 'multi-select' || type === 'relation') {
+    return Array.isArray(value)
+      ? value.filter((v): v is string => typeof v === 'string').join(', ')
+      : ''
+  }
   return typeof value === 'string' ? value : ''
+}
+
+/** Aggregate values of the rollup's target property across related rows. */
+export function computeRollup(fn: RollupFn, values: unknown[]): string {
+  if (fn === 'count') return String(values.filter((v) => v !== null && v !== undefined).length)
+  if (fn === 'show') {
+    return values
+      .map((v) => (Array.isArray(v) ? v.join(', ') : v === null || v === undefined ? '' : String(v)))
+      .filter((s) => s !== '')
+      .join(', ')
+  }
+  const nums = values.filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+  if (nums.length === 0) return ''
+  if (fn === 'sum') return String(nums.reduce((a, b) => a + b, 0))
+  if (fn === 'avg') return String(nums.reduce((a, b) => a + b, 0) / nums.length)
+  if (fn === 'min') return String(Math.min(...nums))
+  return String(Math.max(...nums)) // max
 }

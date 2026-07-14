@@ -4,6 +4,7 @@ import type { Page } from '../db/repo'
 import * as repo from '../db/repo'
 import {
   coerceValue,
+  computeRollup,
   createDefaultSchema,
   formatValue,
   localId,
@@ -11,6 +12,7 @@ import {
   type DbSchema,
   type PropertyDef,
   type PropertyType,
+  type RollupFn,
   type ViewDef,
 } from '../lib/database'
 
@@ -24,7 +26,11 @@ interface DatabaseViewProps {
   onOpenRow: (id: string) => void
 }
 
-const PROPERTY_TYPES: PropertyType[] = ['text', 'number', 'select', 'date', 'checkbox']
+const PROPERTY_TYPES: PropertyType[] = [
+  'text', 'number', 'select', 'date', 'checkbox',
+  'multi-select', 'url', 'relation', 'rollup',
+]
+const ROLLUP_FNS: RollupFn[] = ['count', 'sum', 'avg', 'min', 'max', 'show']
 
 export function DatabaseView({ db, page, pages, onChanged, onOpenRow }: DatabaseViewProps) {
   const schema = useMemo(() => {
@@ -64,7 +70,51 @@ export function DatabaseView({ db, page, pages, onChanged, onOpenRow }: Database
     const type = window.prompt(`Type? (${PROPERTY_TYPES.join(' / ')})`, 'text')
     if (!type || !PROPERTY_TYPES.includes(type as PropertyType)) return
     const def: PropertyDef = { id: localId('prop'), name, type: type as PropertyType }
-    if (def.type === 'select') def.options = ['Todo', 'Doing', 'Done']
+    if (def.type === 'select' || def.type === 'multi-select') {
+      const opts = window.prompt('Options (comma-separated)?', 'Todo, Doing, Done')
+      def.options = (opts ?? '').split(',').map((s) => s.trim()).filter((s) => s !== '')
+      if (def.options.length === 0) return
+    }
+    if (def.type === 'relation') {
+      const dbs = pages.filter((p) => p.is_database && p.id !== page.id)
+      if (dbs.length === 0) {
+        window.alert('No other database pages to relate to.')
+        return
+      }
+      const target = window.prompt(
+        `Target database?\n${dbs.map((d, i) => `${i + 1}. ${d.title || 'Untitled'}`).join('\n')}`,
+        '1',
+      )
+      const idx = Number(target) - 1
+      if (!Number.isInteger(idx) || idx < 0 || idx >= dbs.length) return
+      def.relationTarget = dbs[idx].id
+    }
+    if (def.type === 'rollup') {
+      const rels = schema.properties.filter((p) => p.type === 'relation')
+      if (rels.length === 0) {
+        window.alert('Add a relation property first — rollups aggregate through a relation.')
+        return
+      }
+      const rel = window.prompt(
+        `Through relation?\n${rels.map((r, i) => `${i + 1}. ${r.name}`).join('\n')}`,
+        '1',
+      )
+      const rIdx = Number(rel) - 1
+      if (!Number.isInteger(rIdx) || rIdx < 0 || rIdx >= rels.length) return
+      def.rollupRelation = rels[rIdx].id
+      const targetDb = pages.find((p) => p.id === rels[rIdx].relationTarget)
+      const targetSchema = targetDb?.db_schema ? normalizeSchema(targetDb.db_schema) : null
+      const targetProps = [{ id: 'title', name: 'Title' }, ...(targetSchema?.properties ?? [])]
+      const tp = window.prompt(
+        `Target property?\n${targetProps.map((r, i) => `${i + 1}. ${r.name}`).join('\n')}`,
+        '1',
+      )
+      const tIdx = Number(tp) - 1
+      if (!Number.isInteger(tIdx) || tIdx < 0 || tIdx >= targetProps.length) return
+      def.rollupProperty = targetProps[tIdx].id
+      const fn = window.prompt(`Aggregate? (${ROLLUP_FNS.join(' / ')})`, 'show')
+      def.rollupFn = ROLLUP_FNS.includes(fn as RollupFn) ? (fn as RollupFn) : 'show'
+    }
     await saveSchema({ ...schema, properties: [...schema.properties, def] })
   }
 
@@ -97,6 +147,7 @@ export function DatabaseView({ db, page, pages, onChanged, onOpenRow }: Database
         <TableView
           schema={schema}
           rows={rows}
+          pages={pages}
           onOpenRow={onOpenRow}
           onSetCell={setCell}
           onRenameRow={async (id, title) => {
@@ -126,6 +177,8 @@ export function DatabaseView({ db, page, pages, onChanged, onOpenRow }: Database
 interface TableViewProps {
   schema: DbSchema
   rows: Page[]
+  /** All pages, for relation/rollup lookups across databases. */
+  pages: Page[]
   onOpenRow: (id: string) => void
   onSetCell: (row: Page, prop: PropertyDef, raw: string | boolean) => Promise<void>
   onRenameRow: (id: string, title: string) => Promise<void>
@@ -158,7 +211,7 @@ function TableView(p: TableViewProps) {
             </td>
             {p.schema.properties.map((prop) => (
               <td key={prop.id}>
-                <Cell prop={prop} row={row} onSetCell={p.onSetCell} />
+                <Cell prop={prop} row={row} pages={p.pages} schema={p.schema} onSetCell={p.onSetCell} />
               </td>
             ))}
             <td>
@@ -210,13 +263,51 @@ function TitleCell({
 function Cell({
   prop,
   row,
+  pages,
+  schema,
   onSetCell,
 }: {
   prop: PropertyDef
   row: Page
+  pages: Page[]
+  schema: DbSchema
   onSetCell: (row: Page, prop: PropertyDef, raw: string | boolean) => Promise<void>
 }) {
   const stored = formatValue(prop.type, row.props?.[prop.id])
+  if (prop.type === 'relation') {
+    const linked = Array.isArray(row.props?.[prop.id]) ? (row.props![prop.id] as string[]) : []
+    const candidates = pages.filter((pg) => pg.parent_id === prop.relationTarget)
+    return (
+      <select
+        multiple
+        value={linked}
+        className="db-relation-cell"
+        onChange={(e) =>
+          void onSetCell(
+            row,
+            prop,
+            Array.from(e.target.selectedOptions, (o) => o.value).join(','),
+          )
+        }
+      >
+        {candidates.map((pg) => (
+          <option key={pg.id} value={pg.id}>
+            {pg.title || 'Untitled'}
+          </option>
+        ))}
+      </select>
+    )
+  }
+  if (prop.type === 'rollup') {
+    const relProp = schema.properties.find((pr) => pr.id === prop.rollupRelation)
+    const linkedIds = Array.isArray(row.props?.[relProp?.id ?? '']) ? (row.props![relProp!.id] as string[]) : []
+    const targets = pages.filter((pg) => linkedIds.includes(pg.id))
+    const values = targets.map((pg) =>
+      prop.rollupProperty ? pg.props?.[prop.rollupProperty] : pg.title,
+    )
+    const computed = computeRollup(prop.rollupFn ?? 'show', values)
+    return <span className="db-rollup-cell">{computed || '—'}</span>
+  }
   if (prop.type === 'checkbox') {
     return (
       <input
