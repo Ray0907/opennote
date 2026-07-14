@@ -13,6 +13,7 @@
  */
 import type { Queryable, SyncChange, SyncOp, SyncTable } from '../../shared/sync'
 import { upsertRow } from '../../shared/sync'
+import { rebuildLinksForPages, reresolveLinks } from '../db/repo'
 
 /** Transport to the sync server; HTTP in production, direct calls in tests. */
 export interface SyncTransport {
@@ -117,16 +118,27 @@ export async function syncOnce(
   //    apply window is a few statements long, so the exposure is tiny.
   let applied = 0
   const changes = await transport.pull(cursor)
+  const touchedPages = new Set<string>() // pages whose blocks changed
+  let pagesChanged = false
   await setCapture(db, 'off')
   try {
     for (const change of changes) {
       await upsertRow(db, change.table, change.row)
+      if (change.table === 'blocks') touchedPages.add(String(change.row.page_id))
+      else pagesChanged = true
       cursor = change.serverSeq
       applied++
     }
   } finally {
     await setCapture(db, 'on')
   }
+
+  // 3. Re-derive the local-only links index (M4). upsertRow bypasses
+  //    savePageBlocks, so pulled document edits rebuild their pages' links
+  //    here; pulled page create/rename/delete re-resolves link targets.
+  //    links is not a synced table, so capture state is irrelevant.
+  if (touchedPages.size > 0) await rebuildLinksForPages(db, touchedPages)
+  if (pagesChanged) await reresolveLinks(db)
   await db.query(
     `INSERT INTO sync_state (key, value) VALUES ('cursor', $1)
      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,

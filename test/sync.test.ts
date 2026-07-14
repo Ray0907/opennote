@@ -11,8 +11,11 @@ import { upsertRow } from '../shared/sync'
 import { applyOps, lastSeq, pullChanges } from '../server/sync'
 import type { SyncTransport } from '../src/sync/client'
 import { initClientSync, localMutate, syncOnce } from '../src/sync/client'
+import { getBacklinks } from '../src/db/repo'
 
 const P1 = '11111111-1111-4111-8111-111111111111'
+const P2 = '22222222-2222-4222-8222-222222222222'
+const B1 = '33333333-3333-4333-8333-333333333333'
 const OP = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
 
 function pageOp(opId: string, id: string, title: string, sortKey = 'a0'): SyncOp {
@@ -220,5 +223,47 @@ describe('client outbox sync', () => {
     expect(s).toEqual([{ id: P1, title: 'from-a-offline' }])
     expect(await titles(a)).toEqual(s)
     expect(await titles(b)).toEqual(s)
+  })
+
+  function blockOp(opId: string, id: string, pageId: string, text: string): SyncOp {
+    return {
+      opId,
+      table: 'blocks',
+      rowId: id,
+      row: {
+        id,
+        page_id: pageId,
+        sort_key: 'a0',
+        type: 'paragraph',
+        content: { id, type: 'paragraph', content: [{ type: 'text', text, styles: {} }] },
+        updated_at: new Date('2026-07-14T00:00:00Z').toISOString(),
+        deleted_at: null,
+      },
+    }
+  }
+
+  it('rebuilds the links index for pulled block changes (M4 regression)', async () => {
+    const a = await newClient('client-a')
+    const b = await newClient('client-b')
+    const t = directTransport()
+
+    // A creates Target + Notes and links Notes -> [[Target]] in a block.
+    await localMutate(a, 'pages', pageOp(OP(1), P1, 'Target').row)
+    await localMutate(a, 'pages', pageOp(OP(2), P2, 'Notes', 'a1').row)
+    await localMutate(a, 'blocks', blockOp(OP(3), B1, P2, 'see [[Target]]').row)
+    await syncOnce(a, t)
+
+    // B pulls all three ops; upsertRow bypasses savePageBlocks, so the
+    // links index must be re-derived in syncOnce, not by the writer.
+    await syncOnce(b, t)
+
+    const back = await getBacklinks(b, P1)
+    expect(back.map((p) => p.id)).toEqual([P2])
+
+    // Pulled rename breaks the binding: link re-resolves to NULL target.
+    await localMutate(a, 'pages', pageOp(OP(4), P1, 'Renamed').row)
+    await syncOnce(a, t)
+    await syncOnce(b, t)
+    expect(await getBacklinks(b, P1)).toEqual([])
   })
 })

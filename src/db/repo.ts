@@ -4,6 +4,7 @@
  * contained to this file.
  */
 import type { PGlite, Transaction } from '@electric-sql/pglite'
+import type { Queryable } from '../../shared/sync'
 import { keyBetween } from '../lib/sortkey'
 import { extractWikiLinks } from '../lib/wikilinks'
 import type { BNBlock } from '../lib/markdown'
@@ -282,7 +283,7 @@ export async function savePageBlocks(
  * break to the oldest page so results are deterministic.
  */
 async function rebuildPageLinks(
-  tx: Transaction,
+  tx: Queryable,
   pageId: string,
   docBlocks: BNBlock[],
 ): Promise<void> {
@@ -301,11 +302,36 @@ async function rebuildPageLinks(
 }
 
 /**
+ * Rebuild the links index for specific pages from current DB state. The sync
+ * pull path writes blocks via upsertRow (bypassing savePageBlocks), so pulled
+ * document changes must re-derive their links here. Idempotent; a page whose
+ * blocks are all deleted simply ends up with no outgoing links.
+ */
+export async function rebuildLinksForPages(
+  db: Queryable,
+  pageIds: Iterable<string>,
+): Promise<void> {
+  for (const pageId of pageIds) {
+    const { rows } = await db.query<{ content: BNBlock }>(
+      `SELECT content FROM blocks
+        WHERE page_id = $1 AND deleted_at IS NULL
+        ORDER BY sort_key, id`,
+      [pageId],
+    )
+    await rebuildPageLinks(
+      db,
+      pageId,
+      rows.map((r) => r.content),
+    )
+  }
+}
+
+/**
  * Re-resolve every link's target after the page set changes (create, rename,
  * delete — locally or via sync pull). Cheap at this scale and idempotent;
  * unresolved titles simply stay NULL until a matching page appears.
  */
-export async function reresolveLinks(db: PGlite): Promise<void> {
+export async function reresolveLinks(db: Queryable): Promise<void> {
   await db.query(
     `UPDATE links l
         SET target_page_id = (
