@@ -1,5 +1,6 @@
-import React from 'react'
+import React, { useState } from 'react'
 import type { Page } from '../db/repo'
+import { TEMPLATES } from '../lib/templates'
 
 interface SidebarProps {
   pages: Page[]
@@ -7,6 +8,7 @@ interface SidebarProps {
   onSelect: (id: string) => void
   onCreate: (parentId: string | null) => void
   onCreateDatabase: () => void
+  onCreateFromTemplate: (templateId: string) => void
   onDelete: (id: string) => void
   onImport: () => void
   /** Export the selected page; null disables the button (nothing exportable). */
@@ -15,7 +17,7 @@ interface SidebarProps {
 }
 
 interface TreeNodeProps
-  extends Omit<SidebarProps, 'pages' | 'onCreateDatabase' | 'onImport' | 'onExport'> {
+  extends Omit<SidebarProps, 'pages' | 'onCreateDatabase' | 'onCreateFromTemplate' | 'onImport' | 'onExport'> {
   page: Page
   childrenOf: Map<string | null, Page[]>
   depth: number
@@ -87,11 +89,13 @@ export function Sidebar({
   onSelect,
   onCreate,
   onCreateDatabase,
+  onCreateFromTemplate,
   onDelete,
   onImport,
   onExport,
   onToggleFavorite,
 }: SidebarProps) {
+  const [showTemplates, setShowTemplates] = useState(false)
   const childrenOf = new Map<string | null, Page[]>()
   for (const page of pages) {
     const key = page.parent_id
@@ -158,7 +162,27 @@ export function Sidebar({
         ))}
         {roots.length === 0 && <div className="tree-empty">No pages yet</div>}
       </nav>
+      {showTemplates && (
+        <div className="template-menu">
+          {TEMPLATES.map((t) => (
+            <button
+              key={t.id}
+              className="template-item"
+              onClick={() => {
+                setShowTemplates(false)
+                onCreateFromTemplate(t.id)
+              }}
+            >
+              {t.icon ? `${t.icon} ` : ''}
+              {t.title}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="sidebar-footer">
+        <button title="Create page from template" onClick={() => setShowTemplates((v) => !v)}>
+          Templates
+        </button>
         <button title="Import Markdown files" onClick={() => onImport()}>
           Import
         </button>

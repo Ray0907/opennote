@@ -9,6 +9,7 @@ import { SearchDialog } from './components/SearchDialog'
 import { EditorPane } from './components/EditorPane'
 import { DatabaseView } from './components/DatabaseView'
 import { createDefaultSchema } from './lib/database'
+import { getTemplate } from './lib/templates'
 
 /** Vault-relative mirror path: nested folders following the page tree. */
 export function mirrorPathFor(pages: Page[], pageId: string): string {
@@ -85,6 +86,21 @@ export function App({ db }: { db: PGlite }) {
       const next = await refreshPages()
       setSelectedId(page.id)
       await mirrorPage(next, page.id, [])
+    },
+    [db, refreshPages, mirrorPage],
+  )
+
+  const handleCreateFromTemplate = useCallback(
+    async (templateId: string) => {
+      const template = getTemplate(templateId)
+      if (!template) return
+      const page = await repo.createPage(db, { parentId: null, title: template.title })
+      if (template.icon) await repo.setPageIcon(db, page.id, template.icon)
+      const blocks = template.build()
+      await repo.savePageBlocks(db, page.id, blocks)
+      const next = await refreshPages()
+      setSelectedId(page.id)
+      await mirrorPage(next, page.id, blocks)
     },
     [db, refreshPages, mirrorPage],
   )
@@ -168,6 +184,7 @@ export function App({ db }: { db: PGlite }) {
         onSelect={setSelectedId}
         onCreate={handleCreate}
         onCreateDatabase={() => void handleCreateDatabase()}
+        onCreateFromTemplate={(id) => void handleCreateFromTemplate(id)}
         onDelete={handleDelete}
         onImport={() => void handleImport()}
         onExport={
