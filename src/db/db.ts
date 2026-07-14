@@ -4,8 +4,9 @@
  */
 import { PGlite } from '@electric-sql/pglite'
 import migration001 from '../../shared/migrations/001_init.sql?raw'
+import migration002 from '../../shared/migrations/002_sync.sql?raw'
 
-export const MIGRATIONS: string[] = [migration001]
+export const MIGRATIONS: string[] = [migration001, migration002]
 
 /**
  * Create (or open) a database and apply migrations.
