@@ -30,6 +30,7 @@ export function coverBackground(cover: string): string {
 interface EditorPaneProps {
   db: PGlite
   page: Page
+  theme: 'light' | 'dark'
   onRename: (id: string, title: string) => void
   onDocumentSaved: (pageId: string, blocks: BNBlock[]) => Promise<void>
   onSetIcon: (id: string, icon: string | null) => void
@@ -37,7 +38,7 @@ interface EditorPaneProps {
 }
 
 /** Loads the page's blocks, then mounts the editor with them. */
-export function EditorPane({ db, page, onRename, onDocumentSaved, onSetIcon, onSetCover }: EditorPaneProps) {
+export function EditorPane({ db, page, theme, onRename, onDocumentSaved, onSetIcon, onSetCover }: EditorPaneProps) {
   const [initial, setInitial] = useState<PartialBlock[] | 'empty' | null>(null)
 
   useEffect(() => {
@@ -57,6 +58,7 @@ export function EditorPane({ db, page, onRename, onDocumentSaved, onSetIcon, onS
   return (
     <Editor
       page={page}
+      theme={theme}
       initialContent={initial === 'empty' ? undefined : initial}
       onRename={onRename}
       onDocumentSaved={onDocumentSaved}
@@ -68,6 +70,7 @@ export function EditorPane({ db, page, onRename, onDocumentSaved, onSetIcon, onS
 
 interface EditorProps {
   page: Page
+  theme: 'light' | 'dark'
   initialContent: PartialBlock[] | undefined
   onRename: (id: string, title: string) => void
   onDocumentSaved: (pageId: string, blocks: BNBlock[]) => Promise<void>
@@ -75,7 +78,7 @@ interface EditorProps {
   onSetCover: (id: string, cover: string | null) => void
 }
 
-function Editor({ page, initialContent, onRename, onDocumentSaved, onSetIcon, onSetCover }: EditorProps) {
+function Editor({ page, theme, initialContent, onRename, onDocumentSaved, onSetIcon, onSetCover }: EditorProps) {
   const editor = useCreateBlockNote({ initialContent })
   const [title, setTitle] = useState(page.title)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -188,7 +191,7 @@ function Editor({ page, initialContent, onRename, onDocumentSaved, onSetIcon, on
           }}
         />
       </div>
-      <BlockNoteView editor={editor} theme="light" onChange={scheduleSave} />
+      <BlockNoteView editor={editor} theme={theme} onChange={scheduleSave} />
     </div>
   )
 }

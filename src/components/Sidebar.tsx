@@ -14,10 +14,22 @@ interface SidebarProps {
   /** Export the selected page; null disables the button (nothing exportable). */
   onExport: (() => void) | null
   onToggleFavorite: (id: string, fav: boolean) => void
+  /** Current theme preference ('system' | 'light' | 'dark') and its cycler. */
+  themePref: 'system' | 'light' | 'dark'
+  onCycleTheme: () => void
 }
 
 interface TreeNodeProps
-  extends Omit<SidebarProps, 'pages' | 'onCreateDatabase' | 'onCreateFromTemplate' | 'onImport' | 'onExport'> {
+  extends Omit<
+    SidebarProps,
+    | 'pages'
+    | 'onCreateDatabase'
+    | 'onCreateFromTemplate'
+    | 'onImport'
+    | 'onExport'
+    | 'themePref'
+    | 'onCycleTheme'
+  > {
   page: Page
   childrenOf: Map<string | null, Page[]>
   depth: number
@@ -94,6 +106,8 @@ export function Sidebar({
   onImport,
   onExport,
   onToggleFavorite,
+  themePref,
+  onCycleTheme,
 }: SidebarProps) {
   const [showTemplates, setShowTemplates] = useState(false)
   const childrenOf = new Map<string | null, Page[]>()
@@ -109,12 +123,22 @@ export function Sidebar({
     <aside className="sidebar">
       <div className="sidebar-header">
         <span className="wordmark">OpenNote</span>
-        <button title="New page" onClick={() => onCreate(null)}>
-          + New
-        </button>
-        <button title="New database" onClick={() => onCreateDatabase()}>
-          + DB
-        </button>
+        <div className="sidebar-header-actions">
+          <button
+            className="theme-toggle"
+            title={`Theme: ${themePref} (click to change)`}
+            aria-label={`Theme: ${themePref}. Click to change.`}
+            onClick={onCycleTheme}
+          >
+            {themePref === 'system' ? '◐' : themePref === 'light' ? '☀' : '☾'}
+          </button>
+          <button title="New page" onClick={() => onCreate(null)}>
+            + New
+          </button>
+          <button title="New database" onClick={() => onCreateDatabase()}>
+            + DB
+          </button>
+        </div>
       </div>
       {favorites.length > 0 && (
         <nav className="tree tree-favorites">

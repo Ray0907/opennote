@@ -1,9 +1,60 @@
+/* Semantic tokens (DESIGN.md). Light is the default; [data-theme="dark"]
+   (set by src/lib/theme.ts on <html>) overrides. Legacy aliases
+   --sidebar-bg / --sidebar-border / --accent / --text / --muted are kept so
+   existing rules keep resolving while the file migrates to the new names. */
 :root {
-  --sidebar-bg: #f7f6f3;
-  --sidebar-border: #e6e4df;
+  --paper: #ffffff;
+  --desk: #f7f6f3;
+  --hairline: #e6e4df;
+  --hover-wash: #eceae5;
+  --selected-wash: #e3e1dc;
+  --ink: #37352f;
+  --muted-ink: #9b9a97;
   --accent: #2f80ed;
-  --text: #37352f;
-  --muted: #9b9a97;
+  --selection-tint: #e3f0f8;
+  --selection-ink: #1f5f8b;
+  --error: #c0392b;
+  --scrim: rgba(15, 15, 15, 0.4);
+  --wash-soft: rgba(0, 0, 0, 0.03);
+  --wash-hover: rgba(0, 0, 0, 0.05);
+  --wash-active: rgba(0, 0, 0, 0.08);
+  --shadow-dialog: 0 8px 32px rgba(0, 0, 0, 0.2);
+  --shadow-popover: 0 4px 16px rgba(15, 15, 15, 0.12);
+  --cover-btn-bg: rgba(255, 255, 255, 0.9);
+
+  /* Legacy aliases */
+  --sidebar-bg: var(--desk);
+  --sidebar-border: var(--hairline);
+  --text: var(--ink);
+  --muted: var(--muted-ink);
+  --hover: var(--wash-hover);
+}
+
+:root[data-theme='dark'] {
+  /* Warm-dark, Notion-style: near-black desk, one step lighter paper, never
+     pure #000. Ink hits ≥4.5:1 on both surfaces. */
+  --paper: #1f1f1e;
+  --desk: #191918;
+  --hairline: #33322f;
+  --hover-wash: #2a2a28;
+  --selected-wash: #35342f;
+  --ink: #e9e7e2;
+  --muted-ink: #8f8d87;
+  --accent: #4a92f0;
+  --selection-tint: #1e3a5c;
+  --selection-ink: #8ec1f5;
+  --error: #e57373;
+  --scrim: rgba(0, 0, 0, 0.55);
+  --wash-soft: rgba(255, 255, 255, 0.04);
+  --wash-hover: rgba(255, 255, 255, 0.06);
+  --wash-active: rgba(255, 255, 255, 0.09);
+  --shadow-dialog: 0 8px 32px rgba(0, 0, 0, 0.55);
+  --shadow-popover: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --cover-btn-bg: rgba(30, 30, 28, 0.85);
+}
+
+html {
+  color-scheme: light dark;
 }
 
 * {
@@ -23,6 +74,16 @@ body,
     Arial,
     sans-serif;
   color: var(--text);
+  background: var(--paper);
+}
+
+/* The app is theme-switchable; instant transitions only convey the state
+   change, never decorate. Motion is suppressed entirely under reduce. */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }
 
 .boot {
@@ -34,7 +95,7 @@ body,
 }
 
 .boot-error {
-  color: #c0392b;
+  color: var(--error);
 }
 
 .app {
@@ -64,13 +125,34 @@ body,
   font-weight: 700;
 }
 
+.sidebar-header-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
 .sidebar button {
   border: 1px solid var(--sidebar-border);
-  background: #fff;
+  background: var(--paper);
+  color: var(--ink);
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
   padding: 2px 8px;
+}
+
+.sidebar button:hover {
+  background: var(--hover-wash);
+}
+
+.sidebar button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.theme-toggle {
+  padding: 2px 6px;
+  line-height: 1;
 }
 
 .tree {
@@ -89,7 +171,7 @@ body,
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #999;
+  color: var(--muted-ink);
   user-select: none;
 }
 
@@ -129,7 +211,7 @@ body,
 }
 
 .template-item:hover {
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--wash-hover);
 }
 
 .tree-item {
@@ -144,11 +226,11 @@ body,
 }
 
 .tree-item:hover {
-  background: #eceae5;
+  background: var(--hover-wash);
 }
 
 .tree-item.selected {
-  background: #e3e1dc;
+  background: var(--selected-wash);
   font-weight: 600;
 }
 
@@ -215,42 +297,42 @@ body,
 .db-toolbar { display: flex; gap: 4px; align-items: center; margin: 8px 0 12px; }
 .db-toolbar-spacer { flex: 1; }
 .db-tab { border: none; background: none; padding: 4px 8px; cursor: pointer; border-radius: 4px; }
-.db-tab.active { background: rgba(0, 0, 0, 0.08); font-weight: 600; }
+.db-tab.active { background: var(--wash-active); font-weight: 600; }
 .db-table { border-collapse: collapse; width: 100%; }
-.db-table th, .db-table td { border: 1px solid var(--sidebar-border, #e0e0e0); padding: 2px 6px; text-align: left; }
+.db-table th, .db-table td { border: 1px solid var(--sidebar-border, var(--hairline)); padding: 2px 6px; text-align: left; }
 .db-table input, .db-table select { border: none; background: none; width: 100%; font: inherit; }
 .db-title-cell { display: flex; gap: 4px; align-items: center; }
 .db-title-cell button { visibility: hidden; border: none; background: none; cursor: pointer; }
 tr:hover .db-title-cell button { visibility: visible; }
-.db-add-row { border: none; background: none; color: #777; cursor: pointer; padding: 4px; }
-.db-hint { color: #777; padding: 12px; }
+.db-add-row { border: none; background: none; color: var(--muted-ink); cursor: pointer; padding: 4px; }
+.db-hint { color: var(--muted-ink); padding: 12px; }
 .db-board { display: flex; gap: 12px; align-items: flex-start; }
-.db-board-col { background: rgba(0, 0, 0, 0.03); border-radius: 6px; padding: 8px; min-width: 180px; }
+.db-board-col { background: var(--wash-soft); border-radius: 6px; padding: 8px; min-width: 180px; }
 .db-board-col h4 { margin: 0 0 8px; font-size: 13px; }
-.db-count { color: #999; font-weight: 400; }
-.db-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 4px; padding: 4px 8px; margin-bottom: 6px; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.db-count { color: var(--muted-ink); font-weight: 400; }
+.db-card { background: var(--paper); border: 1px solid var(--hairline); border-radius: 4px; padding: 4px 8px; margin-bottom: 6px; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
 .db-calendar { max-width: 900px; }
 .db-cal-nav { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
 .db-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-.db-cal-head { font-size: 11px; color: #999; text-align: center; }
-.db-cal-cell { min-height: 72px; border: 1px solid #eee; border-radius: 4px; padding: 2px 4px; }
+.db-cal-head { font-size: 11px; color: var(--muted-ink); text-align: center; }
+.db-cal-cell { min-height: 72px; border: 1px solid var(--hairline); border-radius: 4px; padding: 2px 4px; }
 .db-cal-cell.blank { border: none; }
-.db-cal-day { font-size: 11px; color: #999; }
-.db-multiselect-cell, .db-relation-cell { width: 100%; min-height: 40px; max-height: 64px; border: 1px solid #e0e0e0; border-radius: 4px; font-size: 12px; background: #fff; }
+.db-cal-day { font-size: 11px; color: var(--muted-ink); }
+.db-multiselect-cell, .db-relation-cell { width: 100%; min-height: 40px; max-height: 64px; border: 1px solid var(--hairline); border-radius: 4px; font-size: 12px; background: var(--paper); }
 .db-multiselect-cell option, .db-relation-cell option { padding: 1px 4px; }
-.db-multiselect-cell option:checked, .db-relation-cell option:checked { background: #e3f0f8; color: #337ea9; }
-.db-rollup-cell { font-size: 13px; color: #555; }
+.db-multiselect-cell option:checked, .db-relation-cell option:checked { background: var(--selection-tint); color: var(--selection-ink); }
+.db-rollup-cell { font-size: 13px; color: var(--muted-ink); }
 
 /* Search dialog */
-.search-overlay { position: fixed; inset: 0; background: rgba(15, 15, 15, 0.4); display: flex; align-items: flex-start; justify-content: center; padding-top: 12vh; z-index: 1000; }
-.search-dialog { width: 560px; max-width: 90vw; background: #fff; border-radius: 8px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2); overflow: hidden; }
-.search-input { width: 100%; border: none; outline: none; padding: 14px 16px; font-size: 15px; border-bottom: 1px solid #eee; box-sizing: border-box; }
+.search-overlay { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: flex-start; justify-content: center; padding-top: 12vh; z-index: 1000; }
+.search-dialog { width: 560px; max-width: 90vw; background: var(--paper); border-radius: 8px; box-shadow: var(--shadow-dialog); overflow: hidden; }
+.search-input { width: 100%; border: none; outline: none; padding: 14px 16px; font-size: 15px; border-bottom: 1px solid var(--hairline); box-sizing: border-box; }
 .search-results { max-height: 320px; overflow-y: auto; padding: 4px 0; }
 .search-hit { display: block; width: 100%; text-align: left; border: none; background: none; padding: 8px 16px; cursor: pointer; }
 .search-hit.active, .search-hit:hover { background: var(--sidebar-bg); }
-.search-hit-title { font-size: 14px; font-weight: 500; color: #111; }
-.search-hit-snippet { font-size: 12px; color: #999; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.search-empty { padding: 16px; font-size: 13px; color: #999; text-align: center; }
+.search-hit-title { font-size: 14px; font-weight: 500; color: var(--ink); }
+.search-hit-snippet { font-size: 12px; color: var(--muted-ink); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-empty { padding: 16px; font-size: 13px; color: var(--muted-ink); text-align: center; }
 
 /* --- M6: page cover + icon --- */
 .page-cover {
@@ -278,7 +360,7 @@ tr:hover .db-title-cell button { visibility: visible; }
   border-radius: 4px;
   padding: 4px 10px;
   font-size: 12px;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--cover-btn-bg);
   color: var(--text);
   cursor: pointer;
 }
@@ -321,7 +403,7 @@ tr:hover .db-title-cell button { visibility: visible; }
 }
 
 .page-header-add:hover {
-  background: var(--hover, rgba(0, 0, 0, 0.05));
+  background: var(--hover, var(--wash-hover));
 }
 
 .icon-picker,
@@ -334,10 +416,10 @@ tr:hover .db-title-cell button { visibility: visible; }
   flex-wrap: wrap;
   gap: 6px;
   padding: 10px;
-  background: #fff;
-  border: 1px solid var(--sidebar-border, #e0e0e0);
+  background: var(--paper);
+  border: 1px solid var(--sidebar-border, var(--hairline));
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(15, 15, 15, 0.12);
+  box-shadow: var(--shadow-popover);
 }
 
 .icon-picker button {
@@ -350,7 +432,7 @@ tr:hover .db-title-cell button { visibility: visible; }
 }
 
 .icon-picker button:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--wash-hover);
 }
 
 .icon-picker .icon-picker-remove {
@@ -362,7 +444,7 @@ tr:hover .db-title-cell button { visibility: visible; }
 .cover-picker button {
   width: 72px;
   height: 40px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--hairline);
   border-radius: 4px;
   cursor: pointer;
 }

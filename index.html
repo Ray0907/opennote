@@ -4,6 +4,25 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OpenNote</title>
+    <script>
+      // Apply the resolved theme before first paint to avoid a flash of the
+      // wrong theme. Mirrors src/lib/theme.ts (localStorage 'opennote.theme',
+      // 'system' = follow OS, absence = system).
+      (function () {
+        try {
+          var pref = localStorage.getItem('opennote.theme')
+          var resolved =
+            pref === 'light' || pref === 'dark'
+              ? pref
+              : matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light'
+          document.documentElement.dataset.theme = resolved
+        } catch (e) {
+          document.documentElement.dataset.theme = 'light'
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

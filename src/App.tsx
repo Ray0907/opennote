@@ -10,6 +10,7 @@ import { EditorPane } from './components/EditorPane'
 import { DatabaseView } from './components/DatabaseView'
 import { createDefaultSchema } from './lib/database'
 import { getTemplate } from './lib/templates'
+import { useTheme } from './lib/theme'
 
 /** Vault-relative mirror path: nested folders following the page tree. */
 export function mirrorPathFor(pages: Page[], pageId: string): string {
@@ -27,6 +28,7 @@ export function App({ db }: { db: PGlite }) {
   const [pages, setPages] = useState<Page[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
+  const { pref, resolved, cycleTheme } = useTheme()
   // Last mirror path per page, so renames/moves clean up their old file.
   const mirrorPaths = useRef(new Map<string, string>())
   const shell = useMemo(() => getShell(), [])
@@ -193,6 +195,8 @@ export function App({ db }: { db: PGlite }) {
         onToggleFavorite={(id, fav) => {
           void repo.setFavorite(db, id, fav).then(refreshPages)
         }}
+        themePref={pref}
+        onCycleTheme={cycleTheme}
       />
       <main className="editor-area">
         {selectedPage?.is_database ? (
@@ -219,6 +223,7 @@ export function App({ db }: { db: PGlite }) {
             key={selectedPage.id}
             db={db}
             page={selectedPage}
+            theme={resolved}
             onRename={handleRename}
             onDocumentSaved={handleDocumentSaved}
             onSetIcon={(id, icon) => {

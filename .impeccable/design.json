@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-14T00:00:00Z",
+  "title": "Design System: OpenNote",
+  "extensions": {
+    "colorMeta": {
+      "working-blue": { "role": "primary", "displayName": "Working Blue", "canonical": "#2f80ed", "tonalRamp": ["#0a2a55", "#123f80", "#1a55ab", "#2368c9", "#2f80ed", "#6ba4f2", "#a7c8f7", "#e0ecfd"] },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "#37352f", "tonalRamp": ["#1c1b17", "#37352f", "#55534b", "#73716a", "#9b9a97", "#c2c1bd", "#e6e4df", "#f7f6f3"] },
+      "muted-ink": { "role": "neutral", "displayName": "Muted Ink", "canonical": "#9b9a97" },
+      "paper": { "role": "neutral", "displayName": "Paper", "canonical": "#ffffff" },
+      "desk": { "role": "neutral", "displayName": "Desk", "canonical": "#f7f6f3" },
+      "hairline": { "role": "neutral", "displayName": "Hairline", "canonical": "#e6e4df" },
+      "hover-wash": { "role": "neutral", "displayName": "Hover Wash", "canonical": "#eceae5" },
+      "selected-wash": { "role": "neutral", "displayName": "Selected Wash", "canonical": "#e3e1dc" },
+      "selection-tint": { "role": "primary", "displayName": "Selection Tint", "canonical": "#e3f0f8" },
+      "selection-ink": { "role": "primary", "displayName": "Selection Ink", "canonical": "#1f5f8b" },
+      "error": { "role": "error", "displayName": "Error", "canonical": "#c0392b" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Page titles only — the one large text element per screen." },
+      "body": { "displayName": "Body", "purpose": "Tree items, editor prose, search-hit titles." },
+      "label": { "displayName": "Label", "purpose": "Uppercase sidebar section labels (FAVORITES, PAGES) and calendar day heads only." }
+    },
+    "shadows": [
+      { "name": "dialog", "value": "0 8px 32px rgba(0, 0, 0, 0.2)", "purpose": "Search dialog floating over the scrim." },
+      { "name": "popover", "value": "0 4px 16px rgba(15, 15, 15, 0.12)", "purpose": "Icon/cover pickers anchored to the page header." }
+    ],
+    "motion": [
+      { "name": "hover-reveal", "value": "opacity 0.15s", "purpose": "Row and header actions materializing on hover." }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Tree Item",
+      "kind": "nav",
+      "refersTo": "tree-item",
+      "description": "Sidebar page row; selection is a tone shift, actions appear on hover.",
+      "html": "<div class=\"ds-tree\"><div class=\"ds-tree-item\">Meeting Notes</div><div class=\"ds-tree-item ds-selected\">Roadmap</div></div>",
+      "css": ".ds-tree { background: var(--sidebar-bg, #f7f6f3); padding: 6px 0; width: 240px; font-size: 14px; color: #37352f; } .ds-tree-item { padding: 4px 8px; margin: 0 4px; border-radius: 4px; cursor: pointer; } .ds-tree-item:hover { background: #eceae5; } .ds-tree-item.ds-selected { background: #e3e1dc; font-weight: 600; }"
+    },
+    {
+      "name": "Chip Button",
+      "kind": "button",
+      "refersTo": "button-chip",
+      "description": "Small utility button in sidebar header and cover actions.",
+      "html": "<button class=\"ds-btn-chip\">+ New</button>",
+      "css": ".ds-btn-chip { border: 1px solid #e6e4df; background: #fff; border-radius: 4px; cursor: pointer; font-size: 12px; padding: 2px 8px; color: #37352f; } .ds-btn-chip:hover { background: #f7f6f3; } .ds-btn-chip:focus-visible { outline: 2px solid #2f80ed; outline-offset: 1px; } .ds-btn-chip:disabled { opacity: 0.5; cursor: default; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "db-tab",
+      "description": "Borderless control; hover paints a faint ink wash. Active tab darkens.",
+      "html": "<button class=\"ds-btn-ghost\">Table</button><button class=\"ds-btn-ghost ds-active\">Board</button>",
+      "css": ".ds-btn-ghost { border: none; background: none; padding: 4px 8px; cursor: pointer; border-radius: 4px; font-size: 13px; color: #37352f; } .ds-btn-ghost:hover { background: rgba(0, 0, 0, 0.06); } .ds-btn-ghost.ds-active { background: rgba(0, 0, 0, 0.08); font-weight: 600; }"
+    },
+    {
+      "name": "Database Card",
+      "kind": "card",
+      "refersTo": "db-card",
+      "description": "Board-view card: Paper on a tinted column, flat per the Float-Only Rule.",
+      "html": "<div class=\"ds-db-col\"><h4 class=\"ds-db-col-h\">In progress <span class=\"ds-db-count\">2</span></h4><div class=\"ds-db-card\">Write design doc</div><div class=\"ds-db-card\">Ship M2 sync</div></div>",
+      "css": ".ds-db-col { background: rgba(0, 0, 0, 0.03); border-radius: 6px; padding: 8px; width: 200px; } .ds-db-col-h { margin: 0 0 8px; font-size: 13px; color: #37352f; } .ds-db-count { color: #999; font-weight: 400; } .ds-db-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 4px; padding: 4px 8px; margin-bottom: 6px; cursor: pointer; font-size: 13px; color: #37352f; } .ds-db-card:hover { background: #f7f6f3; }"
+    },
+    {
+      "name": "Search Input",
+      "kind": "input",
+      "refersTo": "search-dialog",
+      "description": "Borderless dialog input with a hairline bottom divider.",
+      "html": "<input class=\"ds-search-input\" placeholder=\"Search pages…\" />",
+      "css": ".ds-search-input { width: 320px; border: none; outline: none; padding: 14px 16px; font-size: 15px; border-bottom: 1px solid #eee; color: #37352f; background: #fff; } .ds-search-input::placeholder { color: #9b9a97; } .ds-search-input:focus-visible { border-bottom-color: #2f80ed; }"
+    },
+    {
+      "name": "Section Label",
+      "kind": "custom",
+      "refersTo": "label",
+      "description": "The system's single sanctioned eyebrow: sidebar section headers only.",
+      "html": "<div class=\"ds-section-label\">Favorites</div>",
+      "css": ".ds-section-label { padding: 4px 12px 2px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #999; user-select: none; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Paper Workspace",
+    "overview": "OpenNote's interface is a desk with paper on it. The white content surface is the page you are writing; the faintly warm sidebar (#f7f6f3) is the desk it rests on. Everything you write is literally paper — a Markdown file in a vault you own — and the UI honors that: flat surfaces, hairline separations, quiet grays, and one Working Blue that appears only when something is selected or actionable. The chrome recedes; the document is the interface.",
+    "keyCharacteristics": [
+      "Two-layer neutral scheme: white paper for content, warm desk gray for chrome",
+      "One accent (Working Blue) at well under 10% of any screen",
+      "Flat by default; shadows only on floating layers",
+      "Compact, refined controls that reveal themselves on hover",
+      "System font stack throughout — no display fonts, no font loading"
+    ],
+    "rules": [
+      { "name": "The Working Blue Rule", "body": "The accent marks selection, links, and primary actions — nothing else. A screen with no selection and no actionable state contains zero blue pixels.", "section": "colors" },
+      { "name": "The Two-Layer Rule", "body": "Content lives on Paper; chrome lives on Desk. No third background tone is permitted, and the two always meet at a 1px Hairline.", "section": "colors" },
+      { "name": "The One Voice Rule", "body": "One font family, one text scale. A second family or a >34px size is forbidden.", "section": "typography" },
+      { "name": "The Float-Only Rule", "body": "If it doesn't float, it doesn't cast. Cards, board columns, and tables are flat; a shadow on a resting surface is a bug.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep Working Blue under 10% of any screen (The Working Blue Rule).",
+      "Do separate resting surfaces with 1px Hairline (#e6e4df) or the Paper/Desk split — never with shadow.",
+      "Do ship every control with hover, focus, active, disabled, and selected states; hover-reveal actions at 0.15s.",
+      "Do keep motion 150–250ms, ease-out, state-conveying only — nothing animates while the user is typing.",
+      "Do use native form controls; familiarity is the feature."
+    ],
+    "donts": [
+      "Don't let \"SaaS-gradient landing-page aesthetics\" leak into the app — no gradient text, no glassmorphism, no hero metrics.",
+      "Don't build an \"over-branded developer-tool dark UI — neon accents, terminal cosplay\" when dark mode lands; dark surfaces stay warm and quiet.",
+      "Don't add decorative motion or page-load choreography.",
+      "Don't replace native scrollbars, selects, or inputs with custom controls.",
+      "Don't use color as decoration: blue backgrounds on inactive chrome, colored side-stripes (border-left > 1px), or full-saturation accents on inactive states.",
+      "Don't introduce a second font family, a third background tone, or an uppercase eyebrow outside sidebar section labels."
+    ]
+  }
+}
