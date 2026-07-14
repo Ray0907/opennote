@@ -26,13 +26,23 @@ export interface SyncOnceResult {
   cursor: number
 }
 
-/** Persist this client's identity and initialize the pull cursor. */
+/**
+ * Persist this client's identity, initialize the pull cursor, and enable
+ * automatic outbox capture (003_outbox_triggers.sql) for this connection.
+ * Must run before any user write; repo.ts writes made earlier are not queued.
+ */
 export async function initClientSync(db: Queryable, clientId: string): Promise<void> {
   await db.query(
     `INSERT INTO sync_state (key, value) VALUES ('client_id', $1), ('cursor', '0')
      ON CONFLICT (key) DO NOTHING`,
     [clientId],
   )
+  await setCapture(db, 'on')
+}
+
+/** Toggle trigger-based outbox capture for this session (client is one PGlite connection). */
+async function setCapture(db: Queryable, state: 'on' | 'off'): Promise<void> {
+  await db.query(`SELECT set_config('opennote.capture_outbox', $1, false)`, [state])
 }
 
 async function getState(db: Queryable, key: string): Promise<string | undefined> {
@@ -44,26 +54,29 @@ async function getState(db: Queryable, key: string): Promise<string | undefined>
 }
 
 /**
- * Apply a mutation locally and queue it for the server. This is the single
- * write path for replicated tables: UI code must not upsert rows directly.
+ * Apply a full-row mutation locally; the 003 trigger queues it for the
+ * server. Ordinary UI writes need only plain SQL (repo.ts) — the trigger
+ * captures those too. Requires initClientSync (capture enabled).
  */
 export async function localMutate(
   db: Queryable,
   table: SyncTable,
   row: Record<string, unknown>,
 ): Promise<SyncOp> {
-  const op: SyncOp = {
-    opId: globalThis.crypto.randomUUID(),
+  await upsertRow(db, table, row)
+  const queued = await db.query<{ op_id: string; row: Record<string, unknown> }>(
+    'SELECT op_id, row FROM outbox WHERE row_id = $1 ORDER BY queue_pos DESC LIMIT 1',
+    [String(row.id)],
+  )
+  if (queued.rows.length === 0) {
+    throw new Error('outbox capture is off — initClientSync has not run')
+  }
+  return {
+    opId: queued.rows[0].op_id,
     table,
     rowId: String(row.id),
-    row,
+    row: queued.rows[0].row,
   }
-  await upsertRow(db, table, row)
-  await db.query(
-    'INSERT INTO outbox (op_id, table_name, row_id, row) VALUES ($1, $2, $3, $4)',
-    [op.opId, op.table, op.rowId, JSON.stringify(op.row)],
-  )
-  return op
 }
 
 /** One push/pull cycle. Safe to call on a timer; every step is idempotent. */
@@ -97,12 +110,22 @@ export async function syncOnce(
   }
 
   // 2. Pull everything after our cursor (own ops included — see module doc)
-  //    and apply in seq order.
+  //    and apply in seq order. Capture is off during the apply so pulled
+  //    changes do not echo back into the outbox. Caveat: a repo.ts write
+  //    that interleaves with this loop on the same connection is not
+  //    captured either; the next edit to that row re-queues it, and the
+  //    apply window is a few statements long, so the exposure is tiny.
   let applied = 0
-  for (const change of await transport.pull(cursor)) {
-    await upsertRow(db, change.table, change.row)
-    cursor = change.serverSeq
-    applied++
+  const changes = await transport.pull(cursor)
+  await setCapture(db, 'off')
+  try {
+    for (const change of changes) {
+      await upsertRow(db, change.table, change.row)
+      cursor = change.serverSeq
+      applied++
+    }
+  } finally {
+    await setCapture(db, 'on')
   }
   await db.query(
     `INSERT INTO sync_state (key, value) VALUES ('cursor', $1)
