@@ -4,3 +4,4 @@ dist-electron/
 *.log
 .DS_Store
 dist-server/
+release/
