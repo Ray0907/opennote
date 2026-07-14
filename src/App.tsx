@@ -6,6 +6,8 @@ import { getShell } from './shell'
 import { pageToMarkdown, sanitizeFileName, type BNBlock } from './lib/markdown'
 import { Sidebar } from './components/Sidebar'
 import { EditorPane } from './components/EditorPane'
+import { DatabaseView } from './components/DatabaseView'
+import { createDefaultSchema } from './lib/database'
 
 /** Vault-relative mirror path: nested folders following the page tree. */
 export function mirrorPathFor(pages: Page[], pageId: string): string {
@@ -73,6 +75,13 @@ export function App({ db }: { db: PGlite }) {
     [db, refreshPages, mirrorPage],
   )
 
+  const handleCreateDatabase = useCallback(async () => {
+    const page = await repo.createPage(db, { parentId: null, title: 'New database', isDatabase: true })
+    await repo.setDbSchema(db, page.id, createDefaultSchema())
+    await refreshPages()
+    setSelectedId(page.id)
+  }, [db, refreshPages])
+
   const handleRename = useCallback(
     async (id: string, title: string) => {
       await repo.renamePage(db, id, title)
@@ -114,10 +123,30 @@ export function App({ db }: { db: PGlite }) {
         selectedId={selectedId}
         onSelect={setSelectedId}
         onCreate={handleCreate}
+        onCreateDatabase={() => void handleCreateDatabase()}
         onDelete={handleDelete}
       />
       <main className="editor-area">
-        {selectedPage ? (
+        {selectedPage?.is_database ? (
+          <div className="editor-pane">
+            <input
+              className="page-title"
+              defaultValue={selectedPage.title}
+              placeholder="Untitled"
+              onBlur={(e) => {
+                if (e.target.value !== selectedPage.title) void handleRename(selectedPage.id, e.target.value)
+              }}
+            />
+            <DatabaseView
+              key={selectedPage.id}
+              db={db}
+              page={selectedPage}
+              pages={pages}
+              onChanged={refreshPages}
+              onOpenRow={setSelectedId}
+            />
+          </div>
+        ) : selectedPage ? (
           <EditorPane
             key={selectedPage.id}
             db={db}

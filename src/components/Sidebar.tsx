@@ -6,10 +6,11 @@ interface SidebarProps {
   selectedId: string | null
   onSelect: (id: string) => void
   onCreate: (parentId: string | null) => void
+  onCreateDatabase: () => void
   onDelete: (id: string) => void
 }
 
-interface TreeNodeProps extends Omit<SidebarProps, 'pages'> {
+interface TreeNodeProps extends Omit<SidebarProps, 'pages' | 'onCreateDatabase'> {
   page: Page
   childrenOf: Map<string | null, Page[]>
   depth: number
@@ -65,7 +66,7 @@ function TreeNode({ page, childrenOf, depth, selectedId, onSelect, onCreate, onD
   )
 }
 
-export function Sidebar({ pages, selectedId, onSelect, onCreate, onDelete }: SidebarProps) {
+export function Sidebar({ pages, selectedId, onSelect, onCreate, onCreateDatabase, onDelete }: SidebarProps) {
   const childrenOf = new Map<string | null, Page[]>()
   for (const page of pages) {
     const key = page.parent_id
@@ -80,6 +81,9 @@ export function Sidebar({ pages, selectedId, onSelect, onCreate, onDelete }: Sid
         <span className="wordmark">OpenNote</span>
         <button title="New page" onClick={() => onCreate(null)}>
           + New
+        </button>
+        <button title="New database" onClick={() => onCreateDatabase()}>
+          + DB
         </button>
       </div>
       <nav className="tree">

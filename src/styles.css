@@ -154,3 +154,30 @@ body,
   justify-content: center;
   color: var(--muted);
 }
+
+/* ---- M3: database views ---- */
+.db-view { padding: 0 8px; overflow: auto; }
+.db-toolbar { display: flex; gap: 4px; align-items: center; margin: 8px 0 12px; }
+.db-toolbar-spacer { flex: 1; }
+.db-tab { border: none; background: none; padding: 4px 8px; cursor: pointer; border-radius: 4px; }
+.db-tab.active { background: rgba(0, 0, 0, 0.08); font-weight: 600; }
+.db-table { border-collapse: collapse; width: 100%; }
+.db-table th, .db-table td { border: 1px solid var(--sidebar-border, #e0e0e0); padding: 2px 6px; text-align: left; }
+.db-table input, .db-table select { border: none; background: none; width: 100%; font: inherit; }
+.db-title-cell { display: flex; gap: 4px; align-items: center; }
+.db-title-cell button { visibility: hidden; border: none; background: none; cursor: pointer; }
+tr:hover .db-title-cell button { visibility: visible; }
+.db-add-row { border: none; background: none; color: #777; cursor: pointer; padding: 4px; }
+.db-hint { color: #777; padding: 12px; }
+.db-board { display: flex; gap: 12px; align-items: flex-start; }
+.db-board-col { background: rgba(0, 0, 0, 0.03); border-radius: 6px; padding: 8px; min-width: 180px; }
+.db-board-col h4 { margin: 0 0 8px; font-size: 13px; }
+.db-count { color: #999; font-weight: 400; }
+.db-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 4px; padding: 4px 8px; margin-bottom: 6px; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.db-calendar { max-width: 900px; }
+.db-cal-nav { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.db-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.db-cal-head { font-size: 11px; color: #999; text-align: center; }
+.db-cal-cell { min-height: 72px; border: 1px solid #eee; border-radius: 4px; padding: 2px 4px; }
+.db-cal-cell.blank { border: none; }
+.db-cal-day { font-size: 11px; color: #999; }
