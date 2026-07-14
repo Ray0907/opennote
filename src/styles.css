@@ -1,0 +1,156 @@
+:root {
+  --sidebar-bg: #f7f6f3;
+  --sidebar-border: #e6e4df;
+  --accent: #2f80ed;
+  --text: #37352f;
+  --muted: #9b9a97;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  font-family:
+    ui-sans-serif,
+    -apple-system,
+    'Segoe UI',
+    Helvetica,
+    Arial,
+    sans-serif;
+  color: var(--text);
+}
+
+.boot {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+.boot-error {
+  color: #c0392b;
+}
+
+.app {
+  display: flex;
+  height: 100%;
+}
+
+.sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  border-bottom: 1px solid var(--sidebar-border);
+}
+
+.wordmark {
+  font-weight: 700;
+}
+
+.sidebar button {
+  border: 1px solid var(--sidebar-border);
+  background: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 8px;
+}
+
+.tree {
+  padding: 6px 0;
+}
+
+.tree-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 14px;
+  border-radius: 4px;
+  margin: 0 4px;
+}
+
+.tree-item:hover {
+  background: #eceae5;
+}
+
+.tree-item.selected {
+  background: #e3e1dc;
+  font-weight: 600;
+}
+
+.tree-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-actions {
+  display: none;
+  gap: 4px;
+}
+
+.tree-item:hover .tree-actions {
+  display: inline-flex;
+}
+
+.tree-empty {
+  color: var(--muted);
+  padding: 12px;
+  font-size: 13px;
+}
+
+.editor-area {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.editor-pane {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 48px 32px;
+}
+
+.page-title {
+  width: 100%;
+  border: none;
+  outline: none;
+  font-size: 34px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  color: var(--text);
+  background: transparent;
+}
+
+.page-title::placeholder {
+  color: var(--muted);
+}
+
+.editor-loading,
+.empty-state {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
