@@ -9,6 +9,8 @@ import { createDb } from '../src/db/db'
 import type { SyncOp } from '../shared/sync'
 import { upsertRow } from '../shared/sync'
 import { applyOps, lastSeq, pullChanges } from '../server/sync'
+import type { SyncTransport } from '../src/sync/client'
+import { initClientSync, localMutate, syncOnce } from '../src/sync/client'
 
 const P1 = '11111111-1111-4111-8111-111111111111'
 const OP = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
@@ -126,5 +128,97 @@ describe('sync server core', () => {
     expect(a).toEqual(s)
     expect(b).toEqual(s)
     expect(s).toEqual([{ id: P1, title: 'edited-by-b' }])
+  })
+})
+
+describe('client outbox sync', () => {
+  let server: PGlite
+
+  beforeEach(async () => {
+    server = await createDb()
+  })
+
+  function directTransport(): SyncTransport {
+    return {
+      push: async (clientId, ops) => {
+        await applyOps(server, clientId, ops)
+      },
+      pull: (sinceSeq) => pullChanges(server, sinceSeq),
+    }
+  }
+
+  async function newClient(clientId: string): Promise<PGlite> {
+    const db = await createDb()
+    await initClientSync(db, clientId)
+    return db
+  }
+
+  it('queues offline edits and drains them on sync', async () => {
+    const client = await newClient('client-a')
+    await localMutate(client, 'pages', pageOp(OP(1), P1, 'draft').row)
+    await localMutate(client, 'pages', { ...pageOp(OP(2), P1, 'final').row })
+
+    // Offline: local db has the edit, server has nothing.
+    expect(await titles(client)).toEqual([{ id: P1, title: 'final' }])
+    expect(await titles(server)).toEqual([])
+
+    const r = await syncOnce(client, directTransport())
+    expect(r.pushed).toBe(2)
+    expect(r.cursor).toBe(2)
+    expect(await titles(server)).toEqual([{ id: P1, title: 'final' }])
+    const outbox = await client.query('SELECT * FROM outbox')
+    expect(outbox.rows).toHaveLength(0)
+  })
+
+  it('replays safely after a crash between push and outbox delete', async () => {
+    const client = await newClient('client-a')
+    const op = await localMutate(client, 'pages', pageOp(OP(1), P1, 'once').row)
+
+    // Simulate: push reached the server, then the client crashed before
+    // deleting the outbox row — the op is still queued and gets re-pushed.
+    await applyOps(server, 'client-a', [op])
+    const r = await syncOnce(client, directTransport())
+
+    expect(r.pushed).toBe(1)
+    expect(await lastSeq(server)).toBe(1) // deduped by op_id, no new seq
+    expect(await titles(client)).toEqual([{ id: P1, title: 'once' }])
+    expect(await titles(server)).toEqual([{ id: P1, title: 'once' }])
+  })
+
+  it('converges two clients editing the same row through sync cycles', async () => {
+    const a = await newClient('client-a')
+    const b = await newClient('client-b')
+    const t = directTransport()
+
+    await localMutate(a, 'pages', pageOp(OP(1), P1, 'edited-by-a').row)
+    await localMutate(b, 'pages', pageOp(OP(2), P1, 'edited-by-b').row)
+
+    await syncOnce(a, t) // a's op -> seq 1
+    await syncOnce(b, t) // b's op -> seq 2, b pulls both in order
+    await syncOnce(a, t) // a pulls seq 2
+
+    const s = await titles(server)
+    expect(s).toEqual([{ id: P1, title: 'edited-by-b' }])
+    expect(await titles(a)).toEqual(s)
+    expect(await titles(b)).toEqual(s)
+  })
+
+  it('lets a pending offline edit win after arriving last', async () => {
+    const a = await newClient('client-a')
+    const b = await newClient('client-b')
+    const t = directTransport()
+
+    // B publishes first; A edits the same row while offline.
+    await localMutate(b, 'pages', pageOp(OP(1), P1, 'from-b').row)
+    await syncOnce(b, t)
+    await localMutate(a, 'pages', pageOp(OP(2), P1, 'from-a-offline').row)
+
+    await syncOnce(a, t) // A's op arrives last -> wins by arrival order
+    await syncOnce(b, t)
+
+    const s = await titles(server)
+    expect(s).toEqual([{ id: P1, title: 'from-a-offline' }])
+    expect(await titles(a)).toEqual(s)
+    expect(await titles(b)).toEqual(s)
   })
 })
