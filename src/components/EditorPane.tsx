@@ -15,6 +15,29 @@ import { openNoteSchema, ReferenceBlockContext } from './ReferenceBlocks'
 const SAVE_DEBOUNCE_MS = 500
 const FLUSH_EDITOR_EVENT = 'opennote:flush-editor'
 
+const text = (value: string) => [{ type: 'text' as const, text: value, styles: {} }]
+
+export function createCustomBlock(kind: 'callout' | 'toggle' | 'columns') {
+  if (kind === 'callout') {
+    return { type: 'callout' as const, props: { icon: '💡' }, content: text('Callout') }
+  }
+  if (kind === 'toggle') {
+    return {
+      type: 'toggle' as const,
+      content: text('Toggle'),
+      children: [{ type: 'paragraph' as const, content: text('Toggle details') }],
+    }
+  }
+  return {
+    type: 'columns' as const,
+    props: { columns: 2 },
+    children: [
+      { type: 'column' as const, children: [{ type: 'paragraph' as const, content: text('Left column') }] },
+      { type: 'column' as const, children: [{ type: 'paragraph' as const, content: text('Right column') }] },
+    ],
+  }
+}
+
 interface FlushEditorDetail {
   pending?: Promise<void>
 }
@@ -344,23 +367,7 @@ function Editor({ page, theme, initialContent, onRename, onDocumentSaved, onSetI
           onClick={() => {
             const last = editor.document.at(-1)
             if (!last) return
-            const next = blockKind === 'callout'
-              ? { type: 'callout' as const, props: { icon: '💡' }, content: 'Callout' }
-              : blockKind === 'toggle'
-                ? {
-                    type: 'toggle' as const,
-                    content: 'Toggle',
-                    children: [{ type: 'paragraph' as const, content: 'Toggle details' }],
-                  }
-                : {
-                    type: 'columns' as const,
-                    props: { columns: 2 },
-                    children: [
-                      { type: 'column' as const, children: [{ type: 'paragraph' as const, content: 'Left column' }] },
-                      { type: 'column' as const, children: [{ type: 'paragraph' as const, content: 'Right column' }] },
-                    ],
-                  }
-            editor.insertBlocks([next], last, 'after')
+            editor.insertBlocks([createCustomBlock(blockKind) as never], last, 'after')
           }}
         >
           + Block

@@ -12,6 +12,7 @@ import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import {
   assertNoSymlinkParents,
+  classifyNavigationUrl,
   safeAttachmentPath,
   safeChildPath,
   safeExistingChildPath,
@@ -206,6 +207,32 @@ function createWindow(): void {
       sandbox: true,
       nodeIntegration: false,
     },
+  })
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    const disposition = classifyNavigationUrl(url)
+    if (disposition === 'external') {
+      void shell.openExternal(url)
+      return { action: 'deny' }
+    }
+    if (disposition === 'asset') {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          autoHideMenuBar: true,
+          webPreferences: {
+            contextIsolation: true,
+            sandbox: true,
+            nodeIntegration: false,
+            preload: undefined,
+          },
+        },
+      }
+    }
+    return { action: 'deny' }
+  })
+  win.webContents.on('will-navigate', (event, url) => {
+    event.preventDefault()
+    if (classifyNavigationUrl(url) === 'external') void shell.openExternal(url)
   })
   const devUrl = process.env.VITE_DEV_SERVER_URL
   if (devUrl) {

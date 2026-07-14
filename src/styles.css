@@ -411,16 +411,16 @@ body,
 .toggle-block button:hover { background: var(--hover-wash); color: var(--ink); }
 .columns-block { height: 1px; overflow: hidden; color: transparent; }
 .column-block { display: none; }
-.bn-block-outer:has(> .bn-block > .bn-block-content .toggle-block[data-collapsed='true']) > .bn-block-group {
+.bn-block-outer:has(.toggle-block[data-collapsed='true']) > .bn-block > .bn-block-group {
   display: none;
 }
-.bn-block-outer:has(> .bn-block > .bn-block-content .columns-block) > .bn-block-group {
+.bn-block-outer:has(.columns-block) > .bn-block > .bn-block-group {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 24px;
   margin-left: 0;
 }
-.bn-block-outer:has(> .bn-block > .bn-block-content .column-block) {
+.bn-block-outer:has(.column-block) {
   min-width: 0;
   border-radius: var(--rounded-sm);
   outline: 1px solid var(--hairline);

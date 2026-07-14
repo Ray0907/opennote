@@ -1,7 +1,11 @@
 # OpenNote → Notion 1:1 Parity — Gap Analysis
 
 Date: 2026-07-14
-Status: assessment only (no code in this document)
+Status: historical baseline captured before the parity implementation in PR #1
+
+> This document records the pre-implementation gap analysis that guided PR #1.
+> It is retained as design history and is not a current feature inventory; the
+> same PR implements a number of the gaps described below.
 
 This is an honest inventory of what still separates OpenNote from a true 1:1
 Notion clone, grounded in the current codebase. Each gap notes its size and
@@ -186,7 +190,7 @@ teamspaces. Those belong to a separate "OpenNote Teams" track if ever pursued.
 
 ## Verification note
 
-Every gap above was checked against the codebase on 2026-07-14:
+Every gap above was checked against the pre-implementation codebase on 2026-07-14:
 `src/lib/database.ts` (property/view types), `src/components/DatabaseView.tsx`
 (filter/sort not wired — only `groupBy` read), `src/lib/markdown.ts` (mirror
 block coverage), `src/lib/database.ts` grep for `formula|person|files` (0),

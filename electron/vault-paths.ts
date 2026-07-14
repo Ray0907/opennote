@@ -6,7 +6,30 @@ export function safeChildPath(root: string, relPath: string): string {
   if (resolved !== root && !resolved.startsWith(root + path.sep)) {
     throw new Error('Path is outside the allowed directory')
   }
+  const parts = path.relative(root, resolved).split(path.sep)
+  if (parts.some((part) => part.toLowerCase() === '.git')) {
+    throw new Error('Path uses a reserved Git metadata directory')
+  }
   return resolved
+}
+
+export type NavigationDisposition = 'asset' | 'external' | 'deny'
+
+export function classifyNavigationUrl(raw: string): NavigationDisposition {
+  try {
+    const url = new URL(raw)
+    if (
+      url.protocol === 'opennote-asset:' &&
+      url.hostname === 'vault' &&
+      url.pathname.startsWith('/attachments/')
+    ) return 'asset'
+    if (url.protocol === 'https:' || url.protocol === 'http:' || url.protocol === 'mailto:') {
+      return 'external'
+    }
+  } catch {
+    // Invalid URLs are denied below.
+  }
+  return 'deny'
 }
 
 export function safeAttachmentPath(vaultRoot: string, relPath: string): string {

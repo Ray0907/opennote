@@ -34,17 +34,29 @@ export function legacyMirrorPathFor(pages: Page[], pageId: string): string {
 }
 
 export function mirrorPathFor(pages: Page[], pageId: string): string {
+  const byId = new Map(pages.map((page) => [page.id, page]))
+  const segments: string[] = []
+  let current = byId.get(pageId)
+  while (current) {
+    segments.unshift(`${sanitizeFileName(current.title)}--${current.id}`)
+    current = current.parent_id ? byId.get(current.parent_id) : undefined
+  }
+  return segments.join('/') + '.md'
+}
+
+function leafIdMirrorPathFor(pages: Page[], pageId: string): string {
   const legacy = legacyMirrorPathFor(pages, pageId)
-  const extension = legacy.endsWith('.md') ? '.md' : ''
-  return `${legacy.slice(0, -extension.length)}--${pageId}${extension}`
+  return `${legacy.slice(0, -3)}--${pageId}.md`
 }
 
 export function legacyMirrorPathsToDelete(pages: Page[]): string[] {
   const mirrored = pages.filter((page) => !page.is_database)
   const nextPaths = new Set(mirrored.map((page) => mirrorPathFor(pages, page.id)))
   return [...new Set(
-    mirrored
-      .map((page) => legacyMirrorPathFor(pages, page.id))
+    mirrored.flatMap((page) => [
+      legacyMirrorPathFor(pages, page.id),
+      leafIdMirrorPathFor(pages, page.id),
+    ])
       .filter((legacyPath) => !nextPaths.has(legacyPath)),
   )]
 }
@@ -64,6 +76,26 @@ export function pageSubtree(pages: Page[], pageId: string): Page[] {
   return pages.filter((page) => ids.has(page.id))
 }
 
+export function nextSelectionAfterDelete(
+  currentId: string | null,
+  deletedPages: Page[],
+  remainingPages: Page[],
+): string | null {
+  if (currentId && deletedPages.some((page) => page.id === currentId)) {
+    return remainingPages[0]?.id ?? null
+  }
+  return currentId
+}
+
+export async function selectAfterEditorFlush(
+  id: string,
+  select: (id: string) => void,
+  flush: () => Promise<void> = flushOpenEditor,
+): Promise<void> {
+  await flush()
+  select(id)
+}
+
 export function App({ db }: { db: PGlite }) {
   const [pages, setPages] = useState<Page[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -76,6 +108,10 @@ export function App({ db }: { db: PGlite }) {
   // Last mirror path per page, so renames/moves clean up their old file.
   const mirrorPaths = useRef(new Map<string, string>())
   const shell = useMemo(() => getShell(), [])
+  const selectPage = useCallback(
+    (id: string) => selectAfterEditorFlush(id, setSelectedId),
+    [],
+  )
 
   const refreshPages = useCallback(async () => {
     const next = await repo.listPages(db)
@@ -86,7 +122,7 @@ export function App({ db }: { db: PGlite }) {
   useEffect(() => {
     void refreshPages().then(async (loaded) => {
       try {
-        if (shell.isDesktop && window.localStorage.getItem('opennote.mirror_path_version') !== '2') {
+        if (shell.isDesktop && window.localStorage.getItem('opennote.mirror_path_version') !== '3') {
           for (const page of loaded.filter((candidate) => !candidate.is_database)) {
             const blocks = (await repo.getBlocks(db, page.id)).map((row) => row.content)
             const nextPath = mirrorPathFor(loaded, page.id)
@@ -99,7 +135,7 @@ export function App({ db }: { db: PGlite }) {
           for (const legacyPath of legacyMirrorPathsToDelete(loaded)) {
             await shell.deleteMirror(legacyPath)
           }
-          window.localStorage.setItem('opennote.mirror_path_version', '2')
+          window.localStorage.setItem('opennote.mirror_path_version', '3')
         }
       } catch (error) {
         console.error('Mirror path migration failed', error)
@@ -151,11 +187,11 @@ export function App({ db }: { db: PGlite }) {
     async (parentId: string | null) => {
       const page = await repo.createPage(db, { parentId, title: 'Untitled' })
       const next = await refreshPages()
-      setSelectedId(page.id)
       await mirrorPage(next, page.id, [])
+      await selectPage(page.id)
       return page
     },
-    [db, refreshPages, mirrorPage],
+    [db, refreshPages, mirrorPage, selectPage],
   )
 
   const handleCreateLinkedSubPage = useCallback(
@@ -177,18 +213,18 @@ export function App({ db }: { db: PGlite }) {
       const blocks = template.build()
       await repo.savePageBlocks(db, page.id, blocks)
       const next = await refreshPages()
-      setSelectedId(page.id)
       await mirrorPage(next, page.id, blocks)
+      await selectPage(page.id)
     },
-    [db, refreshPages, mirrorPage],
+    [db, refreshPages, mirrorPage, selectPage],
   )
 
   const handleCreateDatabase = useCallback(async () => {
     const page = await repo.createPage(db, { parentId: null, title: 'New database', isDatabase: true })
     await repo.setDbSchema(db, page.id, createDefaultSchema())
     await refreshPages()
-    setSelectedId(page.id)
-  }, [db, refreshPages])
+    await selectPage(page.id)
+  }, [db, refreshPages, selectPage])
 
   const handleDuplicate = useCallback(async (id: string) => {
     await flushOpenEditor()
@@ -272,7 +308,8 @@ export function App({ db }: { db: PGlite }) {
     async (id: string) => {
       await flushOpenEditor()
       const title = pages.find((p) => p.id === id)?.title || 'Untitled'
-      const mirrorPathsToDelete = pageSubtree(pages, id)
+      const deletedPages = pageSubtree(pages, id)
+      const mirrorPathsToDelete = deletedPages
         .filter((page) => !page.is_database)
         .map((page) => ({
           id: page.id,
@@ -284,7 +321,7 @@ export function App({ db }: { db: PGlite }) {
         mirrorPaths.current.delete(mirror.id)
       }
       const next = await refreshPages()
-      setSelectedId((cur) => (cur === id ? (next[0]?.id ?? null) : cur))
+      setSelectedId((current) => nextSelectionAfterDelete(current, deletedPages, next))
       setToast({
         message: `Deleted "${title}"`,
         actionLabel: 'Undo',
@@ -353,16 +390,16 @@ export function App({ db }: { db: PGlite }) {
     for (const page of imported) await mirrorPage(next, page.id, page.blocks)
     const last = imported.at(-1)
     if (last) {
-      setSelectedId(last.id)
+      await selectPage(last.id)
     }
-  }, [db, shell, refreshPages, mirrorPage])
+  }, [db, shell, refreshPages, mirrorPage, selectPage])
 
   return (
     <div className="app">
       <Sidebar
         pages={pages}
         selectedId={selectedId}
-        onSelect={setSelectedId}
+        onSelect={(id) => void selectPage(id)}
         onCreate={handleCreate}
         onCreateDatabase={() => void handleCreateDatabase()}
         onCreateFromTemplate={(id) => void handleCreateFromTemplate(id)}
@@ -398,7 +435,7 @@ export function App({ db }: { db: PGlite }) {
               page={selectedPage}
               pages={pages}
               onChanged={refreshPages}
-              onOpenRow={setSelectedId}
+              onOpenRow={(id) => void selectPage(id)}
               onDeleteRow={handleDelete}
             />
           </div>
@@ -417,7 +454,7 @@ export function App({ db }: { db: PGlite }) {
               void repo.setPageCover(db, id, cover).then(refreshPages)
             }}
             pages={pages}
-            onOpenPage={setSelectedId}
+            onOpenPage={(id) => void selectPage(id)}
             onCreateSubPage={handleCreateLinkedSubPage}
             onChanged={refreshPages}
             onDeleteRow={handleDelete}
@@ -436,7 +473,7 @@ export function App({ db }: { db: PGlite }) {
         db={db}
         open={searchOpen}
         onClose={() => setSearchOpen(false)}
-        onOpenPage={setSelectedId}
+        onOpenPage={(id) => void selectPage(id)}
       />
       <TrashDialog
         db={db}
@@ -445,7 +482,7 @@ export function App({ db }: { db: PGlite }) {
         onRestored={(id) => {
           setTrashOpen(false)
           void refreshPages().then(async (next) => {
-            setSelectedId(id)
+            await selectPage(id)
             for (const restored of pageSubtree(next, id)) {
               if (restored.is_database) continue
               const blocks = (await repo.getBlocks(db, restored.id)).map((row) => row.content)
