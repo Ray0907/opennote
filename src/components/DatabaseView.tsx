@@ -317,6 +317,29 @@ function Cell({
       />
     )
   }
+  if (prop.type === 'multi-select') {
+    const chosen = Array.isArray(row.props?.[prop.id]) ? (row.props![prop.id] as string[]) : []
+    return (
+      <select
+        multiple
+        value={chosen}
+        className="db-multiselect-cell"
+        onChange={(e) =>
+          void onSetCell(
+            row,
+            prop,
+            Array.from(e.target.selectedOptions, (o) => o.value).join(','),
+          )
+        }
+      >
+        {(prop.options ?? []).map((o) => (
+          <option key={o} value={o}>
+            {o}
+          </option>
+        ))}
+      </select>
+    )
+  }
   if (prop.type === 'select') {
     return (
       <select value={stored} onChange={(e) => void onSetCell(row, prop, e.target.value)}>
