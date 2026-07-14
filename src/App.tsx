@@ -173,6 +173,9 @@ export function App({ db }: { db: PGlite }) {
         onExport={
           selectedPage && !selectedPage.is_database ? () => void handleExport() : null
         }
+        onToggleFavorite={(id, fav) => {
+          void repo.setFavorite(db, id, fav).then(refreshPages)
+        }}
       />
       <main className="editor-area">
         {selectedPage?.is_database ? (

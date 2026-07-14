@@ -11,6 +11,7 @@ interface SidebarProps {
   onImport: () => void
   /** Export the selected page; null disables the button (nothing exportable). */
   onExport: (() => void) | null
+  onToggleFavorite: (id: string, fav: boolean) => void
 }
 
 interface TreeNodeProps
@@ -20,7 +21,7 @@ interface TreeNodeProps
   depth: number
 }
 
-function TreeNode({ page, childrenOf, depth, selectedId, onSelect, onCreate, onDelete }: TreeNodeProps) {
+function TreeNode({ page, childrenOf, depth, selectedId, onSelect, onCreate, onDelete, onToggleFavorite }: TreeNodeProps) {
   const children = childrenOf.get(page.id) ?? []
   return (
     <div>
@@ -34,6 +35,15 @@ function TreeNode({ page, childrenOf, depth, selectedId, onSelect, onCreate, onD
           {page.title || 'Untitled'}
         </span>
         <span className="tree-actions">
+          <button
+            title={page.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleFavorite(page.id, !page.is_favorite)
+            }}
+          >
+            {page.is_favorite ? '★' : '☆'}
+          </button>
           <button
             title="Add sub-page"
             onClick={(e) => {
@@ -64,6 +74,7 @@ function TreeNode({ page, childrenOf, depth, selectedId, onSelect, onCreate, onD
           onSelect={onSelect}
           onCreate={onCreate}
           onDelete={onDelete}
+          onToggleFavorite={onToggleFavorite}
         />
       ))}
     </div>
@@ -79,6 +90,7 @@ export function Sidebar({
   onDelete,
   onImport,
   onExport,
+  onToggleFavorite,
 }: SidebarProps) {
   const childrenOf = new Map<string | null, Page[]>()
   for (const page of pages) {
@@ -87,6 +99,7 @@ export function Sidebar({
     childrenOf.get(key)!.push(page)
   }
   const roots = childrenOf.get(null) ?? []
+  const favorites = pages.filter((p) => p.is_favorite)
 
   return (
     <aside className="sidebar">
@@ -99,7 +112,37 @@ export function Sidebar({
           + DB
         </button>
       </div>
+      {favorites.length > 0 && (
+        <nav className="tree tree-favorites">
+          <div className="tree-section-label">Favorites</div>
+          {favorites.map((page) => (
+            <div
+              key={page.id}
+              className={`tree-item${page.id === selectedId ? ' selected' : ''}`}
+              style={{ paddingLeft: 8 }}
+              onClick={() => onSelect(page.id)}
+            >
+              <span className="tree-title">
+                {page.icon ? `${page.icon} ` : ''}
+                {page.title || 'Untitled'}
+              </span>
+              <span className="tree-actions">
+                <button
+                  title="Remove from favorites"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onToggleFavorite(page.id, false)
+                  }}
+                >
+                  ★
+                </button>
+              </span>
+            </div>
+          ))}
+        </nav>
+      )}
       <nav className="tree">
+        <div className="tree-section-label">Pages</div>
         {roots.map((page) => (
           <TreeNode
             key={page.id}
@@ -110,6 +153,7 @@ export function Sidebar({
             onSelect={onSelect}
             onCreate={onCreate}
             onDelete={onDelete}
+            onToggleFavorite={onToggleFavorite}
           />
         ))}
         {roots.length === 0 && <div className="tree-empty">No pages yet</div>}
