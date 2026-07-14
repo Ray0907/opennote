@@ -5,6 +5,7 @@
  */
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import type { AddressInfo } from 'node:net'
+import { request as httpRequest } from 'node:http'
 import type { Server } from 'node:http'
 import type { PGlite } from '@electric-sql/pglite'
 import { createDb } from '../src/db/db'
@@ -98,9 +99,9 @@ describe('sync over HTTP', () => {
     expect(await titles(serverDb)).toEqual([{ id: P1, title: 'once' }])
   })
 
-  it('answers CORS preflight and marks responses cross-origin-safe', async () => {
-    // The renderer is a different origin (vite dev / file://); without these
-    // headers every browser fetch to the sync server is blocked.
+  it('answers CORS preflight only for allowlisted origins', async () => {
+    // The renderer (vite dev origin) must pass CORS; every other web origin
+    // must be blocked, since the server is unauthenticated on loopback.
     const preflight = await fetch(`${baseUrl}/push`, {
       method: 'OPTIONS',
       headers: {
@@ -110,12 +111,56 @@ describe('sync over HTTP', () => {
       },
     })
     expect(preflight.status).toBe(204)
-    expect(preflight.headers.get('access-control-allow-origin')).toBe('*')
+    expect(preflight.headers.get('access-control-allow-origin')).toBe('http://localhost:5173')
     expect(preflight.headers.get('access-control-allow-methods')).toContain('POST')
     expect(preflight.headers.get('access-control-allow-headers')).toContain('content-type')
 
-    const pull = await fetch(`${baseUrl}/pull?since=0`)
-    expect(pull.headers.get('access-control-allow-origin')).toBe('*')
+    const pull = await fetch(`${baseUrl}/pull?since=0`, {
+      headers: { origin: 'http://localhost:5173' },
+    })
+    expect(pull.headers.get('access-control-allow-origin')).toBe('http://localhost:5173')
+  })
+
+  it('denies CORS to non-allowlisted origins (no wildcard leak)', async () => {
+    const evil = await fetch(`${baseUrl}/pull?since=0`, {
+      headers: { origin: 'https://evil.example' },
+    })
+    // Request still executes (defense is the browser CORS check), but no
+    // allow-origin header means the page cannot read the response, and the
+    // failed preflight blocks any cross-origin POST /push entirely.
+    expect(evil.headers.get('access-control-allow-origin')).toBeNull()
+
+    const preflight = await fetch(`${baseUrl}/push`, {
+      method: 'OPTIONS',
+      headers: {
+        origin: 'https://evil.example',
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'content-type',
+      },
+    })
+    expect(preflight.headers.get('access-control-allow-origin')).toBeNull()
+  })
+
+  it('rejects non-loopback Host headers (DNS rebinding)', async () => {
+    // fetch() strips the forbidden `host` header, so use raw node:http.
+    const { port } = server.address() as AddressInfo
+    const status = await new Promise<number>((resolve, reject) => {
+      const req = httpRequest(
+        {
+          host: '127.0.0.1',
+          port,
+          path: '/pull?since=0',
+          headers: { host: 'attacker.example:8787' },
+        },
+        (res) => {
+          res.resume()
+          resolve(res.statusCode ?? 0)
+        },
+      )
+      req.on('error', reject)
+      req.end()
+    })
+    expect(status).toBe(403)
   })
 
   it('rejects malformed input with 400s, not crashes', async () => {

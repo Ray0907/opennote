@@ -5,6 +5,7 @@
  */
 import type { PGlite, Transaction } from '@electric-sql/pglite'
 import { keyBetween } from '../lib/sortkey'
+import { extractWikiLinks } from '../lib/wikilinks'
 import type { BNBlock } from '../lib/markdown'
 
 export interface Page {
@@ -72,6 +73,7 @@ export async function createPage(
      VALUES ($1, $2, $3, $4, $5)`,
     [id, parentId, opts.title ?? '', sortKey, opts.isDatabase ?? false],
   )
+  await reresolveLinks(db) // a dangling [[title]] may now bind to this page
   const page = await getPage(db, id)
   if (!page) throw new Error(`createPage: page ${id} vanished after insert`)
   return page
@@ -102,6 +104,7 @@ export async function renamePage(db: PGlite, id: string, title: string): Promise
     `UPDATE pages SET title = $2, updated_at = now() WHERE id = $1`,
     [id, title],
   )
+  await reresolveLinks(db)
 }
 
 /** Soft-delete a page and its whole subtree, plus their blocks. */
@@ -121,6 +124,12 @@ export async function deletePage(db: PGlite, id: string): Promise<void> {
       WHERE id IN (SELECT id FROM subtree) AND deleted_at IS NULL`,
     [id],
   )
+  // Drop the deleted subtree's outgoing links and unbind inbound ones.
+  await db.query(
+    `DELETE FROM links
+      WHERE source_page_id NOT IN (SELECT id FROM pages WHERE deleted_at IS NULL)`,
+  )
+  await reresolveLinks(db)
 }
 
 /** Move a page under a new parent, appended as the last child. */
@@ -262,5 +271,59 @@ export async function savePageBlocks(
       )
     }
     await tx.query(`UPDATE pages SET updated_at = now() WHERE id = $1`, [pageId])
+    await rebuildPageLinks(tx, pageId, docBlocks)
   })
+}
+
+/**
+ * M4 wiki links. `links` is a derived, local-only index (see 005_links.sql):
+ * rebuilt from the saved document inside the same transaction, so it can
+ * never drift from blocks. Resolution is by case-insensitive title; ties
+ * break to the oldest page so results are deterministic.
+ */
+async function rebuildPageLinks(
+  tx: Transaction,
+  pageId: string,
+  docBlocks: BNBlock[],
+): Promise<void> {
+  await tx.query(`DELETE FROM links WHERE source_page_id = $1`, [pageId])
+  for (const title of extractWikiLinks(docBlocks)) {
+    await tx.query(
+      `INSERT INTO links (source_page_id, target_title, target_page_id)
+       VALUES ($1, $2,
+         (SELECT id FROM pages
+           WHERE lower(title) = lower($2) AND deleted_at IS NULL
+           ORDER BY created_at, id LIMIT 1))
+       ON CONFLICT (source_page_id, target_title) DO NOTHING`,
+      [pageId, title],
+    )
+  }
+}
+
+/**
+ * Re-resolve every link's target after the page set changes (create, rename,
+ * delete — locally or via sync pull). Cheap at this scale and idempotent;
+ * unresolved titles simply stay NULL until a matching page appears.
+ */
+export async function reresolveLinks(db: PGlite): Promise<void> {
+  await db.query(
+    `UPDATE links l
+        SET target_page_id = (
+          SELECT p.id FROM pages p
+           WHERE lower(p.title) = lower(l.target_title) AND p.deleted_at IS NULL
+           ORDER BY p.created_at, p.id LIMIT 1)`,
+  )
+}
+
+/** Pages whose documents currently contain [[title-of pageId]]. */
+export async function getBacklinks(db: PGlite, pageId: string): Promise<Page[]> {
+  const { rows } = await db.query<Page>(
+    `SELECT p.id, p.parent_id, p.title, p.icon, p.sort_key, p.is_database,
+            p.db_schema, p.props, p.created_at::text, p.updated_at::text
+       FROM links l JOIN pages p ON p.id = l.source_page_id
+      WHERE l.target_page_id = $1 AND p.deleted_at IS NULL
+      ORDER BY p.title, p.id`,
+    [pageId],
+  )
+  return rows
 }
