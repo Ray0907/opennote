@@ -43,6 +43,8 @@ export const SYNC_COLUMNS: Record<SyncTable, string[]> = {
     'is_database',
     'db_schema',
     'props',
+    'is_favorite',
+    'cover',
     'created_at',
     'updated_at',
     'deleted_at',
@@ -55,17 +57,23 @@ const JSONB_COLUMNS = new Set(['db_schema', 'props', 'content'])
 
 /**
  * Upsert a full row image into pages/blocks. Overwrites every replicated
- * column: last write applied wins (LWW by arrival order).
+ * column present in the payload: last write applied wins (LWW by arrival
+ * order). Columns *missing* from the payload (e.g. a row image from an older
+ * client that predates a migration) are skipped entirely so column defaults
+ * apply on insert and existing values are preserved on update — an absent key
+ * must never be coerced to an explicit NULL.
  */
 export async function upsertRow(
   db: Queryable,
   table: SyncTable,
   row: Record<string, unknown>,
 ): Promise<void> {
-  const cols = SYNC_COLUMNS[table]
+  const cols = SYNC_COLUMNS[table].filter((c) => row[c] !== undefined)
+  if (!cols.includes('id')) {
+    throw new Error(`sync row for ${table} is missing id`)
+  }
   const params = cols.map((c) => {
     const v = row[c]
-    if (v === undefined) return null
     if (JSONB_COLUMNS.has(c) && v !== null) return JSON.stringify(v)
     return v
   })
@@ -74,9 +82,10 @@ export async function upsertRow(
     .filter((c) => c !== 'id')
     .map((c) => `${c} = EXCLUDED.${c}`)
     .join(', ')
+  const conflict = updates.length > 0 ? `DO UPDATE SET ${updates}` : 'DO NOTHING'
   await db.query(
     `INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders})
-     ON CONFLICT (id) DO UPDATE SET ${updates}`,
+     ON CONFLICT (id) ${conflict}`,
     params,
   )
 }

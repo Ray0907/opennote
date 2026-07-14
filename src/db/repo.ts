@@ -19,6 +19,8 @@ export interface Page {
   is_database: boolean
   db_schema: unknown
   props: Record<string, unknown> | null
+  is_favorite: boolean
+  cover: string | null
   created_at: string
   updated_at: string
 }
@@ -38,7 +40,7 @@ function uuid(): string {
 export async function listPages(db: PGlite): Promise<Page[]> {
   const { rows } = await db.query<Page>(
     `SELECT id, parent_id, title, icon, sort_key, is_database, db_schema, props,
-            created_at::text, updated_at::text
+            is_favorite, cover, created_at::text, updated_at::text
        FROM pages
       WHERE deleted_at IS NULL
       ORDER BY sort_key, id`,
@@ -49,7 +51,7 @@ export async function listPages(db: PGlite): Promise<Page[]> {
 export async function getPage(db: PGlite, id: string): Promise<Page | null> {
   const { rows } = await db.query<Page>(
     `SELECT id, parent_id, title, icon, sort_key, is_database, db_schema, props,
-            created_at::text, updated_at::text
+            is_favorite, cover, created_at::text, updated_at::text
        FROM pages WHERE id = $1 AND deleted_at IS NULL`,
     [id],
   )
@@ -109,8 +111,22 @@ export async function renamePage(db: PGlite, id: string, title: string): Promise
   await reresolveLinks(db)
 }
 
-/** Soft-delete a page and its whole subtree, plus their blocks. */
+/**
+ * Soft-delete a page and its whole subtree, plus their blocks. The whole
+ * operation shares one tombstone timestamp so restorePage can identify it by
+ * equality. now() alone is not enough: under PGlite's WASM clock it has
+ * millisecond resolution, so two quick deletes can collide — bump the stamp
+ * past every existing tombstone to keep each delete operation distinct.
+ */
 export async function deletePage(db: PGlite, id: string): Promise<void> {
+  const { rows: stampRows } = await db.query<{ stamp: string }>(
+    `SELECT GREATEST(
+       now(),
+       COALESCE((SELECT max(deleted_at) FROM pages) + interval '1 microsecond', now()),
+       COALESCE((SELECT max(deleted_at) FROM blocks) + interval '1 microsecond', now())
+     )::text AS stamp`,
+  )
+  const stamp = stampRows[0].stamp
   await db.query(
     `WITH RECURSIVE subtree AS (
        SELECT id FROM pages WHERE id = $1
@@ -118,13 +134,13 @@ export async function deletePage(db: PGlite, id: string): Promise<void> {
        SELECT p.id FROM pages p JOIN subtree s ON p.parent_id = s.id
      ),
      blocks_marked AS (
-       UPDATE blocks SET deleted_at = now()
+       UPDATE blocks SET deleted_at = $2::timestamptz
         WHERE page_id IN (SELECT id FROM subtree) AND deleted_at IS NULL
         RETURNING 1
      )
-     UPDATE pages SET deleted_at = now(), updated_at = now()
+     UPDATE pages SET deleted_at = $2::timestamptz, updated_at = now()
       WHERE id IN (SELECT id FROM subtree) AND deleted_at IS NULL`,
-    [id],
+    [id, stamp],
   )
   // Drop the deleted subtree's outgoing links and unbind inbound ones.
   await db.query(
@@ -151,6 +167,108 @@ export async function movePage(
     `UPDATE pages SET parent_id = $2, sort_key = $3, updated_at = now() WHERE id = $1`,
     [id, newParentId, sortKey],
   )
+}
+
+/** Toggle a page's favorite flag (M6). */
+export async function setFavorite(db: PGlite, id: string, fav: boolean): Promise<void> {
+  await db.query(
+    `UPDATE pages SET is_favorite = $2, updated_at = now() WHERE id = $1`,
+    [id, fav],
+  )
+}
+
+/** Set or clear a page's icon emoji (M6). */
+export async function setPageIcon(db: PGlite, id: string, icon: string | null): Promise<void> {
+  await db.query(
+    `UPDATE pages SET icon = $2, updated_at = now() WHERE id = $1`,
+    [id, icon],
+  )
+}
+
+/** Set or clear a page's cover (CSS gradient key or data URL, M6). */
+export async function setPageCover(db: PGlite, id: string, cover: string | null): Promise<void> {
+  await db.query(
+    `UPDATE pages SET cover = $2, updated_at = now() WHERE id = $1`,
+    [id, cover],
+  )
+}
+
+export async function listFavorites(db: PGlite): Promise<Page[]> {
+  const { rows } = await db.query<Page>(
+    `SELECT id, parent_id, title, icon, sort_key, is_database, db_schema, props,
+            is_favorite, cover, created_at::text, updated_at::text
+       FROM pages
+      WHERE is_favorite AND deleted_at IS NULL
+      ORDER BY title, id`,
+  )
+  return rows
+}
+
+/**
+ * Trash roots: deleted pages whose parent is live or absent. Children deleted
+ * in the same operation are restored along with their root, so listing them
+ * separately would only produce confusing duplicates.
+ */
+export async function listTrash(db: PGlite): Promise<Page[]> {
+  const { rows } = await db.query<Page>(
+    `SELECT p.id, p.parent_id, p.title, p.icon, p.sort_key, p.is_database,
+            p.db_schema, p.props, p.is_favorite, p.cover,
+            p.created_at::text, p.updated_at::text
+       FROM pages p
+      WHERE p.deleted_at IS NOT NULL
+        AND (p.parent_id IS NULL OR NOT EXISTS (
+              SELECT 1 FROM pages q
+               WHERE q.id = p.parent_id AND q.deleted_at IS NOT NULL))
+      ORDER BY p.updated_at DESC, p.id`,
+  )
+  return rows
+}
+
+/**
+ * Restore a trashed page and the subtree that was deleted with it. deletePage
+ * stamps the whole subtree (pages + blocks) with a single now(), so equality
+ * on that timestamp restores exactly the pages/blocks removed by that one
+ * delete — descendants trashed in an earlier, separate operation stay trashed.
+ */
+export async function restorePage(db: PGlite, id: string): Promise<void> {
+  const { rows } = await db.query<{ deleted_at: string | null; parent_id: string | null }>(
+    `SELECT deleted_at::text, parent_id FROM pages WHERE id = $1`,
+    [id],
+  )
+  const root = rows[0]
+  if (!root?.deleted_at) return
+  const { rows: restored } = await db.query<{ id: string }>(
+    `WITH RECURSIVE subtree AS (
+       SELECT id FROM pages WHERE id = $1
+       UNION ALL
+       SELECT p.id FROM pages p JOIN subtree s ON p.parent_id = s.id
+        WHERE p.deleted_at = $2::timestamptz
+     ),
+     blocks_restored AS (
+       UPDATE blocks SET deleted_at = NULL
+        WHERE page_id IN (SELECT id FROM subtree) AND deleted_at = $2::timestamptz
+        RETURNING 1
+     )
+     UPDATE pages SET deleted_at = NULL, updated_at = now()
+      WHERE id IN (SELECT id FROM subtree) AND deleted_at = $2::timestamptz
+      RETURNING id`,
+    [id, root.deleted_at],
+  )
+  // If the original parent is still trashed (or gone), surface at top level.
+  if (root.parent_id) {
+    const { rows: parent } = await db.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM pages WHERE id = $1 AND deleted_at IS NULL`,
+      [root.parent_id],
+    )
+    if (!parent[0]?.n) await movePage(db, id, null)
+  }
+  // deletePage dropped the subtree's outgoing links; re-derive them, then let
+  // dangling [[titles]] elsewhere bind to the restored pages.
+  await rebuildLinksForPages(
+    db,
+    restored.map((r) => r.id),
+  )
+  await reresolveLinks(db)
 }
 
 export async function getBlocks(db: PGlite, pageId: string): Promise<BlockRow[]> {

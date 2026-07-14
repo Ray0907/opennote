@@ -8,8 +8,9 @@ import migration002 from '../../shared/migrations/002_sync.sql?raw'
 import migration003 from '../../shared/migrations/003_outbox_triggers.sql?raw'
 import migration004 from '../../shared/migrations/004_databases.sql?raw'
 import migration005 from '../../shared/migrations/005_links.sql?raw'
+import migration006 from '../../shared/migrations/006_favorites.sql?raw'
 
-export const MIGRATIONS: string[] = [migration001, migration002, migration003, migration004, migration005]
+export const MIGRATIONS: string[] = [migration001, migration002, migration003, migration004, migration005, migration006]
 
 /**
  * Create (or open) a database and apply migrations.

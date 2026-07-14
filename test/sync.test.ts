@@ -104,6 +104,34 @@ describe('sync server core', () => {
     expect(changes[0].row.deleted_at).not.toBeNull()
   })
 
+  it('a row image missing newer columns keeps defaults and existing values', async () => {
+    // pageOp predates M6, so its row image has no is_favorite/cover keys —
+    // exactly what an older client would push. Insert must fall back to the
+    // column defaults instead of exploding on the NOT NULL constraint.
+    await applyOps(server, 'client-a', [pageOp(OP(1), P1, 'v1')])
+    const fav = await server.query<{ is_favorite: boolean }>(
+      'SELECT is_favorite FROM pages WHERE id = $1',
+      [P1],
+    )
+    expect(fav.rows[0].is_favorite).toBe(false)
+
+    // A later old-client update must not clobber columns it doesn't know about.
+    await server.query('UPDATE pages SET is_favorite = true, cover = $2 WHERE id = $1', [
+      P1,
+      'linear-gradient(#fff, #000)',
+    ])
+    await applyOps(server, 'client-a', [pageOp(OP(2), P1, 'v2')])
+    const after = await server.query<{ title: string; is_favorite: boolean; cover: string }>(
+      'SELECT title, is_favorite, cover FROM pages WHERE id = $1',
+      [P1],
+    )
+    expect(after.rows[0]).toEqual({
+      title: 'v2',
+      is_favorite: true,
+      cover: 'linear-gradient(#fff, #000)',
+    })
+  })
+
   it('two clients converge after cross-pull', async () => {
     const clientA = await createDb()
     const clientB = await createDb()
