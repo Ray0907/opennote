@@ -204,6 +204,12 @@ export function App({ db }: { db: PGlite }) {
             page={selectedPage}
             onRename={handleRename}
             onDocumentSaved={handleDocumentSaved}
+            onSetIcon={(id, icon) => {
+              void repo.setPageIcon(db, id, icon).then(refreshPages)
+            }}
+            onSetCover={(id, cover) => {
+              void repo.setPageCover(db, id, cover).then(refreshPages)
+            }}
           />
         ) : (
           <div className="empty-state">

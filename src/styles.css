@@ -228,3 +228,118 @@ tr:hover .db-title-cell button { visibility: visible; }
 .search-hit-title { font-size: 14px; font-weight: 500; color: #111; }
 .search-hit-snippet { font-size: 12px; color: #999; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .search-empty { padding: 16px; font-size: 13px; color: #999; text-align: center; }
+
+/* --- M6: page cover + icon --- */
+.page-cover {
+  position: relative;
+  height: 180px;
+  margin: -48px -32px 24px;
+}
+
+.page-cover-actions {
+  position: absolute;
+  right: 16px;
+  bottom: 12px;
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.page-cover:hover .page-cover-actions {
+  opacity: 1;
+}
+
+.page-cover-actions button {
+  border: none;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.page-header {
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.page-icon {
+  border: none;
+  background: transparent;
+  font-size: 56px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+.page-header-controls {
+  display: flex;
+  gap: 8px;
+  height: 24px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.page-header:hover .page-header-controls {
+  opacity: 1;
+}
+
+.page-header-add {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.page-header-add:hover {
+  background: var(--hover, rgba(0, 0, 0, 0.05));
+}
+
+.icon-picker,
+.cover-picker {
+  position: absolute;
+  z-index: 30;
+  top: 100%;
+  left: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid var(--sidebar-border, #e0e0e0);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(15, 15, 15, 0.12);
+}
+
+.icon-picker button {
+  border: none;
+  background: transparent;
+  font-size: 22px;
+  padding: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.icon-picker button:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.icon-picker .icon-picker-remove {
+  font-size: 12px;
+  color: var(--muted);
+  align-self: center;
+}
+
+.cover-picker button {
+  width: 72px;
+  height: 40px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  cursor: pointer;
+}
