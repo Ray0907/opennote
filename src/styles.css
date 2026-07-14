@@ -127,7 +127,9 @@ body,
   border-right: 1px solid var(--sidebar-border);
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
+  /* No scroll on the aside itself — only .tree scrolls, so the header,
+     sync status, and footer stay pinned with a long page list (critique P3). */
+  overflow: hidden;
 }
 
 .sidebar-header {
@@ -175,6 +177,8 @@ body,
 .tree {
   padding: 6px 0;
   flex: 1;
+  min-height: 0; /* allow the flex child to shrink so its own scroll engages */
+  overflow-y: auto;
 }
 
 .tree.tree-favorites {
@@ -330,8 +334,9 @@ body,
 .db-table th, .db-table td { border: 1px solid var(--sidebar-border, var(--hairline)); padding: 2px 6px; text-align: left; }
 .db-table input, .db-table select { border: none; background: none; width: 100%; font: inherit; }
 .db-title-cell { display: flex; gap: 4px; align-items: center; }
-.db-title-cell button { visibility: hidden; border: none; background: none; cursor: pointer; }
-tr:hover .db-title-cell button { visibility: visible; }
+.db-title-cell button { opacity: 0; border: none; background: none; cursor: pointer; transition: opacity 0.15s; }
+tr:hover .db-title-cell button,
+.db-title-cell button:focus-visible { opacity: 1; }
 .db-add-row { border: none; background: none; color: var(--muted-ink); cursor: pointer; padding: 4px; }
 .db-hint { color: var(--muted-ink); padding: 12px; }
 .db-board { display: flex; gap: 12px; align-items: flex-start; }
@@ -379,7 +384,8 @@ tr:hover .db-title-cell button { visibility: visible; }
   transition: opacity 0.15s;
 }
 
-.page-cover:hover .page-cover-actions {
+.page-cover:hover .page-cover-actions,
+.page-cover-actions:focus-within {
   opacity: 1;
 }
 
@@ -416,7 +422,8 @@ tr:hover .db-title-cell button { visibility: visible; }
   transition: opacity 0.15s;
 }
 
-.page-header:hover .page-header-controls {
+.page-header:hover .page-header-controls,
+.page-header-controls:focus-within {
   opacity: 1;
 }
 
@@ -483,11 +490,38 @@ tr:hover .db-title-cell button { visibility: visible; }
 .sync-status {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 8px;
   padding: 6px 14px;
   font-size: 11px;
   color: var(--muted-ink);
   border-top: 1px solid var(--hairline);
+}
+
+.sync-status-state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sync-status-vault {
+  border: none;
+  background: none;
+  color: var(--muted-ink);
+  font-size: 11px;
+  padding: 2px 4px;
+  border-radius: var(--rounded-sm);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.sync-status-vault:hover {
+  background: var(--wash-hover);
+  color: var(--ink);
+}
+.sync-status-vault:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .sync-dot {

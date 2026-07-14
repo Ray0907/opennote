@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('opennote', {
     ipcRenderer.invoke('mirror:write', relPath, content),
   deleteMirror: (relPath: string) => ipcRenderer.invoke('mirror:delete', relPath),
   vaultPath: () => ipcRenderer.invoke('vault:path'),
+  revealVault: () => ipcRenderer.invoke('vault:reveal'),
   exportMarkdown: (defaultName: string, content: string) =>
     ipcRenderer.invoke('export:markdown', defaultName, content),
   importMarkdown: () => ipcRenderer.invoke('import:markdown'),

@@ -22,13 +22,20 @@ export function SearchDialog({
   const [active, setActive] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  const restoreFocusRef = useRef<HTMLElement | null>(null)
+
   useEffect(() => {
     if (open) {
       setQuery('')
       setHits([])
       setActive(0)
-      // Focus after the dialog renders.
+      // Remember what had focus, then move focus into the dialog.
+      restoreFocusRef.current = document.activeElement as HTMLElement | null
       setTimeout(() => inputRef.current?.focus(), 0)
+      return () => {
+        // Restore focus to the trigger when the dialog closes.
+        restoreFocusRef.current?.focus?.()
+      }
     }
   }, [open])
 
@@ -76,6 +83,9 @@ export function SearchDialog({
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Escape') onClose()
+            // The input is the only focusable control; trap Tab so focus
+            // can't leak to the background behind the modal.
+            else if (e.key === 'Tab') e.preventDefault()
             else if (e.key === 'ArrowDown') {
               e.preventDefault()
               setActive((a) => Math.min(a + 1, hits.length - 1))

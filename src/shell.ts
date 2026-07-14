@@ -16,6 +16,10 @@ export interface ShellApi {
   deleteMirror(relPath: string): Promise<void>
   /** Absolute path of the vault folder (for display). */
   vaultPath(): Promise<string>
+  /** Open the vault folder in the OS file manager. */
+  revealVault(): Promise<void>
+  /** Whether native shell features (mirror, reveal) are available. */
+  readonly isDesktop: boolean
   /** Save-dialog + write. Resolves to the chosen path, or null if cancelled. */
   exportMarkdown(defaultName: string, content: string): Promise<string | null>
   /** Open-dialog + read .md files. Resolves to files, or null if cancelled. */
@@ -32,6 +36,10 @@ const noopShell: ShellApi = {
   async vaultPath() {
     return '(mirror disabled outside the desktop app)'
   },
+  async revealVault() {
+    /* browser dev: no OS file manager */
+  },
+  isDesktop: false,
   /** Browser fallback: trigger a download of the .md file. */
   async exportMarkdown(defaultName, content) {
     const blob = new Blob([content], { type: 'text/markdown' })
@@ -66,5 +74,8 @@ const noopShell: ShellApi = {
 }
 
 export function getShell(): ShellApi {
-  return window.opennote ?? noopShell
+  const injected = window.opennote
+  if (!injected) return noopShell
+  // The preload bridge doesn't carry isDesktop; derive it here.
+  return { ...injected, isDesktop: true }
 }

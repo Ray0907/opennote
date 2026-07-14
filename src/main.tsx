@@ -38,7 +38,17 @@ function startSyncLoop(db: PGlite): void {
   const tick = async (): Promise<void> => {
     if (inFlight) return
     inFlight = true
-    emitSyncStatus({ phase: 'syncing' })
+    // Only show the "syncing" pulse when there are local writes to push —
+    // an idle online poll must not blink Working Blue every interval while
+    // the user is typing (Working Blue Rule + no-motion-while-typing).
+    let pending = 0
+    try {
+      const { rows } = await db.query<{ n: number }>('SELECT count(*)::int AS n FROM outbox')
+      pending = rows[0]?.n ?? 0
+    } catch {
+      // Outbox unreadable — treat as idle; the sync attempt still runs.
+    }
+    if (pending > 0) emitSyncStatus({ phase: 'syncing' })
     try {
       const result = await syncOnce(db, transport)
       if (wasOffline) console.info('sync: back online')

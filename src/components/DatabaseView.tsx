@@ -24,9 +24,11 @@ interface DatabaseViewProps {
   pages: Page[]
   onChanged: () => Promise<unknown>
   onOpenRow: (id: string) => void
+  /** Deletes a row-page through the app's undo-toast path (critique P1). */
+  onDeleteRow: (id: string) => Promise<void>
 }
 
-export function DatabaseView({ db, page, pages, onChanged, onOpenRow }: DatabaseViewProps) {
+export function DatabaseView({ db, page, pages, onChanged, onOpenRow, onDeleteRow }: DatabaseViewProps) {
   const [addingProperty, setAddingProperty] = useState(false)
   const schema = useMemo(() => {
     // A database page created before its schema was written gets the default.
@@ -101,8 +103,7 @@ export function DatabaseView({ db, page, pages, onChanged, onOpenRow }: Database
             await onChanged()
           }}
           onDeleteRow={async (id) => {
-            await repo.deletePage(db, id)
-            await onChanged()
+            await onDeleteRow(id) // app path: soft-delete + undo toast + refresh
           }}
           onAddRow={addRow}
           onAddProperty={() => setAddingProperty(true)}

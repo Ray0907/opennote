@@ -242,6 +242,7 @@ export function App({ db }: { db: PGlite }) {
               pages={pages}
               onChanged={refreshPages}
               onOpenRow={setSelectedId}
+              onDeleteRow={handleDelete}
             />
           </div>
         ) : selectedPage ? (

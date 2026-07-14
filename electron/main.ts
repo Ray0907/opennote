@@ -3,7 +3,7 @@
  * Responsibilities: one window, and the Markdown-mirror file IPC.
  * No application logic belongs here.
  */
-import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import * as path from 'node:path'
 import * as fs from 'node:fs/promises'
 
@@ -42,6 +42,14 @@ ipcMain.handle('mirror:delete', async (_event, relPath: string) => {
 })
 
 ipcMain.handle('vault:path', async () => vaultDir())
+
+// Open the vault folder in the OS file manager (critique Q3: make the
+// data-sovereignty promise visible). Creates it first if it doesn't exist.
+ipcMain.handle('vault:reveal', async () => {
+  const dir = vaultDir()
+  await fs.mkdir(dir, { recursive: true })
+  await shell.openPath(dir)
+})
 
 /** M4 export: save-dialog + write. Returns the chosen path, or null if cancelled. */
 ipcMain.handle(
