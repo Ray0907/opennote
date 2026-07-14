@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "verify": "npm run typecheck && npm run test && npm run build",
-    "start": "npm run build && electron ."
+    "start": "npm run build && electron .",
+    "sync-server": "vite build --ssr server/main.ts --outDir dist-server && node dist-server/main.js"
   },
   "dependencies": {
     "@blocknote/core": "^0.17.1",
