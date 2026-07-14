@@ -13,4 +13,8 @@ contextBridge.exposeInMainWorld('opennote', {
   exportMarkdown: (defaultName: string, content: string) =>
     ipcRenderer.invoke('export:markdown', defaultName, content),
   importMarkdown: () => ipcRenderer.invoke('import:markdown'),
+  saveAttachment: (name: string, type: string, data: ArrayBuffer) =>
+    ipcRenderer.invoke('attachment:save', name, type, data),
+  listHistory: (relPath: string) => ipcRenderer.invoke('history:list', relPath),
+  readHistory: (relPath: string, hash: string) => ipcRenderer.invoke('history:read', relPath, hash),
 })

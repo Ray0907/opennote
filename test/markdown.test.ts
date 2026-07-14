@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  attachmentPrefixForMirror,
   blocksToMarkdown,
   pageToMarkdown,
   sanitizeFileName,
@@ -69,6 +70,49 @@ describe('blocksToMarkdown', () => {
     const md = blocksToMarkdown([block('paragraph', [text('會議記錄')])])
     expect(md).toContain('會議記錄')
   })
+
+  it('renders image and file blocks with mirror-relative attachment paths', () => {
+    const md = blocksToMarkdown([
+      block('image', [], { props: { url: 'attachments/photo.png', name: 'photo.png', caption: 'Diagram' } }),
+      block('file', [], { props: { url: 'attachments/notes.pdf', name: 'notes.pdf' } }),
+    ], '../')
+
+    expect(md).toContain('![Diagram](../attachments/photo.png)')
+    expect(md).toContain('[notes.pdf](../attachments/notes.pdf)')
+  })
+
+  it('renders inline page and linked database references as durable app links', () => {
+    const md = blocksToMarkdown([
+      block('pageLink', [], { props: { pageId: 'page-1', title: 'Child page' } }),
+      block('databaseView', [], { props: { databaseId: 'db-1', title: 'Tasks' } }),
+    ])
+
+    expect(md).toContain('[Child page](opennote://page/page-1)')
+    expect(md).toContain('[Tasks](opennote://database/db-1)')
+  })
+
+  it('renders callouts, toggles, and columns without losing their structure', () => {
+    const md = blocksToMarkdown([
+      block('callout', [text('Remember this')], { props: { icon: '💡' } }),
+      block('toggle', [text('Details')], {
+        props: { collapsed: true },
+        children: [block('paragraph', [text('Hidden body')])],
+      }),
+      block('columns', [], {
+        props: { columns: 2 },
+        children: [
+          block('column', [], { children: [block('paragraph', [text('Left')])] }),
+          block('column', [], { children: [block('paragraph', [text('Right')])] }),
+        ],
+      }),
+    ])
+
+    expect(md).toContain('> [!NOTE] 💡 Remember this')
+    expect(md).toContain('<details>\n<summary>Details</summary>\n\nHidden body\n</details>')
+    expect(md).toContain('<div class="opennote-columns" data-columns="2">')
+    expect(md).toContain('<section class="opennote-column">\nLeft\n</section>')
+    expect(md).toContain('<section class="opennote-column">\nRight\n</section>')
+  })
 })
 
 describe('pageToMarkdown', () => {
@@ -93,5 +137,11 @@ describe('sanitizeFileName', () => {
   })
   it('keeps CJK titles', () => {
     expect(sanitizeFileName('會議記錄')).toBe('會議記錄')
+  })
+
+  it('computes an attachment prefix from a nested mirror path', () => {
+    expect(attachmentPrefixForMirror('Root.md')).toBe('')
+    expect(attachmentPrefixForMirror('Parent/Child.md')).toBe('../')
+    expect(attachmentPrefixForMirror('A/B/C.md')).toBe('../../')
   })
 })

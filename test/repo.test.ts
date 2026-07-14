@@ -112,6 +112,99 @@ describe('repo', () => {
     expect(pages.find((p) => p.id === b.id)?.parent_id).toBe(a.id)
   })
 
+  it('rejects moving a page into its own subtree', async () => {
+    const root = await repo.createPage(db, { title: 'Root' })
+    const child = await repo.createPage(db, { parentId: root.id, title: 'Child' })
+    await expect(repo.movePage(db, root.id, child.id)).rejects.toThrow('own subtree')
+  })
+
+  it('reorders a page before another sibling with one fractional-key update', async () => {
+    const a = await repo.createPage(db, { title: 'A' })
+    const b = await repo.createPage(db, { title: 'B' })
+    const c = await repo.createPage(db, { title: 'C' })
+    const before = await repo.listPages(db)
+
+    await repo.reorderPage(db, c.id, b.id)
+
+    const after = await repo.listPages(db)
+    expect(after.map((page) => page.id)).toEqual([a.id, c.id, b.id])
+    expect(after.find((page) => page.id === a.id)?.sort_key).toBe(
+      before.find((page) => page.id === a.id)?.sort_key,
+    )
+    expect(after.find((page) => page.id === b.id)?.sort_key).toBe(
+      before.find((page) => page.id === b.id)?.sort_key,
+    )
+  })
+
+  it('duplicates page content and decoration with fresh block ids', async () => {
+    const source = await repo.createPage(db, { title: 'Source' })
+    await repo.setPageIcon(db, source.id, '📄')
+    await repo.setPageCover(db, source.id, 'ocean')
+    await repo.setPageProps(db, source.id, { owner: 'Ray' })
+    await repo.savePageBlocks(db, source.id, [
+      para('11111111-1111-4111-8111-111111111111', 'copied text'),
+    ])
+
+    const copy = await repo.duplicatePage(db, source.id)
+    const copyBlocks = await repo.getBlocks(db, copy.id)
+
+    expect(copy).toMatchObject({ title: 'Source copy', icon: '📄', cover: 'ocean', props: { owner: 'Ray' } })
+    expect(copyBlocks[0].id).not.toBe('11111111-1111-4111-8111-111111111111')
+    expect((copyBlocks[0].content.content as Array<{ text: string }>)[0].text).toBe('copied text')
+  })
+
+  it('duplicates the full subtree and chooses a collision-free copy title', async () => {
+    const source = await repo.createPage(db, { title: 'Projects', isDatabase: true })
+    const row = await repo.createPage(db, { parentId: source.id, title: 'Launch' })
+    const note = await repo.createPage(db, { parentId: row.id, title: 'Brief' })
+    await repo.setDbSchema(db, source.id, {
+      properties: [{ id: 'related', type: 'relation', relationTarget: source.id }],
+      views: [],
+    })
+    await repo.setPageProps(db, note.id, { related: [row.id] })
+    await repo.savePageBlocks(db, note.id, [
+      para('11111111-1111-4111-8111-111111111111', 'nested content'),
+      {
+        id: '22222222-2222-4222-8222-222222222222',
+        type: 'pageLink',
+        props: { pageId: row.id, title: row.title },
+        content: [],
+        children: [],
+      },
+    ])
+
+    const first = await repo.duplicatePage(db, source.id)
+    const second = await repo.duplicatePage(db, source.id)
+    const pages = await repo.listPages(db)
+    const firstRow = pages.find((page) => page.parent_id === first.id)
+    const firstNote = pages.find((page) => page.parent_id === firstRow?.id)
+
+    expect(first.title).toBe('Projects copy')
+    expect(second.title).toBe('Projects copy 2')
+    expect(firstRow?.title).toBe('Launch')
+    expect(firstNote?.title).toBe('Brief')
+    expect(firstNote && (await repo.getBlocks(db, firstNote.id))[0].content.content).toEqual([
+      { type: 'text', text: 'nested content', styles: {} },
+    ])
+    expect(firstNote?.props).toEqual({ related: [firstRow?.id] })
+    expect(first.db_schema).toMatchObject({
+      properties: [{ relationTarget: first.id }],
+    })
+    expect(firstNote && (await repo.getBlocks(db, firstNote.id))[1].content.props).toMatchObject({
+      pageId: firstRow?.id,
+    })
+  })
+
+  it('suffixes duplicate titles even when the source title reaches the filename limit', async () => {
+    const source = await repo.createPage(db, { title: 'x'.repeat(120) })
+    const first = await repo.duplicatePage(db, source.id)
+    const second = await repo.duplicatePage(db, source.id)
+
+    expect(first.title).not.toBe(second.title)
+    expect(first.title.length).toBeLessThanOrEqual(120)
+    expect(second.title.length).toBeLessThanOrEqual(120)
+  })
+
   it('CJK content survives the round trip', async () => {
     const page = await repo.createPage(db, { title: '中文頁面' })
     await repo.savePageBlocks(db, page.id, [

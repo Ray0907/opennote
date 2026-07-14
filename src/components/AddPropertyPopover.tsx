@@ -18,6 +18,13 @@ const PROPERTY_TYPES: { value: PropertyType; label: string }[] = [
   { value: 'url', label: 'URL' },
   { value: 'relation', label: 'Relation' },
   { value: 'rollup', label: 'Rollup' },
+  { value: 'formula', label: 'Formula' },
+  { value: 'person', label: 'Person' },
+  { value: 'files', label: 'Files & media' },
+  { value: 'created-time', label: 'Created time' },
+  { value: 'last-edited-time', label: 'Last edited time' },
+  { value: 'created-by', label: 'Created by' },
+  { value: 'last-edited-by', label: 'Last edited by' },
 ]
 const ROLLUP_FNS: RollupFn[] = ['show', 'count', 'sum', 'avg', 'min', 'max']
 
@@ -49,6 +56,7 @@ export function AddPropertyPopover({
   const [rollupRelation, setRollupRelation] = useState(existingRelations[0]?.id ?? '')
   const [rollupProperty, setRollupProperty] = useState('title')
   const [rollupFn, setRollupFn] = useState<RollupFn>('show')
+  const [formula, setFormula] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const databases = pages.filter((p) => p.is_database && p.id !== currentPageId)
@@ -108,6 +116,13 @@ export function AddPropertyPopover({
       def.rollupRelation = rollupRelation
       def.rollupProperty = rollupProperty
       def.rollupFn = rollupFn
+    }
+    if (type === 'formula') {
+      if (!formula.trim()) {
+        setError('Enter a formula, for example [Price] * [Qty].')
+        return
+      }
+      def.formula = formula.trim()
     }
     onSubmit(def)
   }
@@ -207,6 +222,17 @@ export function AddPropertyPopover({
             </label>
           </>
         ))}
+
+      {type === 'formula' && (
+        <label className="prop-field">
+          <span>Expression</span>
+          <input
+            value={formula}
+            onChange={(event) => setFormula(event.target.value)}
+            placeholder="[Price] * [Qty]"
+          />
+        </label>
+      )}
 
       {error && <p className="prop-error">{error}</p>}
 

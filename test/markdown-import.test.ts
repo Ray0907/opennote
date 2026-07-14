@@ -86,6 +86,78 @@ describe('markdownToBlocks', () => {
     expect(blocks[0].content).toEqual([{ type: 'text', text: 'const x = 1\n\nif (x) {}' }])
   })
 
+  it('parses standalone Markdown images as image blocks', () => {
+    const [image] = markdownToBlocks('![A diagram](../attachments/diagram.png)', nextId)
+    expect(image.type).toBe('image')
+    expect(image.props).toEqual({
+      url: 'attachments/diagram.png',
+      name: 'A diagram',
+      caption: 'A diagram',
+    })
+    expect(image.content).toEqual([])
+  })
+
+  it('restores nested vault attachments and file blocks to canonical URLs', () => {
+    const blocks = markdownToBlocks(
+      '![Diagram](../../attachments/diagram.png)\n\n[Report](../../attachments/report.pdf)<!-- opennote:file -->',
+      nextId,
+    )
+
+    expect(blocks.map((block) => ({ type: block.type, props: block.props }))).toEqual([
+      {
+        type: 'image',
+        props: { url: 'attachments/diagram.png', name: 'Diagram', caption: 'Diagram' },
+      },
+      {
+        type: 'file',
+        props: { url: 'attachments/report.pdf', name: 'Report' },
+      },
+    ])
+  })
+
+  it('parses durable app links back into reference blocks', () => {
+    const blocks = markdownToBlocks(
+      '[Child page](opennote://page/page-1)\n\n[Tasks](opennote://database/db-1)',
+      nextId,
+    )
+    expect(blocks.map((block) => ({ type: block.type, props: block.props }))).toEqual([
+      { type: 'pageLink', props: { pageId: 'page-1', title: 'Child page' } },
+      { type: 'databaseView', props: { databaseId: 'db-1', title: 'Tasks' } },
+    ])
+  })
+
+  it('reconstructs callout, toggle, and column block hierarchy', () => {
+    const md = [
+      '> [!NOTE] 💡 Remember this',
+      '',
+      '<details open>',
+      '<summary>Details</summary>',
+      '',
+      'Hidden body',
+      '</details>',
+      '',
+      '<div class="opennote-columns" data-columns="2">',
+      '<section class="opennote-column">',
+      'Left',
+      '</section>',
+      '<section class="opennote-column">',
+      'Right',
+      '</section>',
+      '</div>',
+    ].join('\n')
+    const blocks = markdownToBlocks(md, nextId)
+
+    expect(blocks[0]).toMatchObject({ type: 'callout', props: { icon: '💡' } })
+    expect(blocks[1]).toMatchObject({ type: 'toggle', props: { collapsed: false } })
+    expect(blocks[1].children?.[0].type).toBe('paragraph')
+    expect(blocks[2]).toMatchObject({ type: 'columns', props: { columns: 2 } })
+    expect(blocks[2].children?.map((column) => column.type)).toEqual(['column', 'column'])
+    expect(blocks[2].children?.map((column) => column.children?.[0].content)).toEqual([
+      [{ type: 'text', text: 'Left' }],
+      [{ type: 'text', text: 'Right' }],
+    ])
+  })
+
   it('round-trips serializer output', () => {
     const original: BNBlock[] = [
       { id: 'h', type: 'heading', props: { level: 2 }, content: [{ type: 'text', text: 'Notes' }], children: [] },

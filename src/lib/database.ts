@@ -9,7 +9,9 @@
 
 export type PropertyType =
   | 'text' | 'number' | 'select' | 'date' | 'checkbox'
-  | 'multi-select' | 'url' | 'relation' | 'rollup'
+  | 'multi-select' | 'url' | 'relation' | 'rollup' | 'formula'
+  | 'person' | 'created-time' | 'last-edited-time'
+  | 'created-by' | 'last-edited-by' | 'files'
 
 export type RollupFn = 'count' | 'sum' | 'avg' | 'min' | 'max' | 'show'
 
@@ -27,9 +29,11 @@ export interface PropertyDef {
   rollupProperty?: string
   /** rollup: aggregation. Default 'show'. */
   rollupFn?: RollupFn
+  /** formula: safe expression with property references such as [Price] * [Qty]. */
+  formula?: string
 }
 
-export type ViewKind = 'table' | 'board' | 'calendar'
+export type ViewKind = 'table' | 'board' | 'calendar' | 'list' | 'gallery' | 'timeline'
 
 export interface ViewDef {
   id: string
@@ -45,6 +49,13 @@ export interface ViewDef {
 export interface DbSchema {
   properties: PropertyDef[]
   views: ViewDef[]
+}
+
+export interface ViewRow {
+  title: string
+  props?: Record<string, unknown> | null
+  created_at?: string
+  updated_at?: string
 }
 
 let counter = 0
@@ -89,6 +100,7 @@ export function normalizeSchema(raw: unknown): DbSchema {
           if (typeof p.rollupProperty === 'string') def.rollupProperty = p.rollupProperty
           def.rollupFn = isRollupFn(p.rollupFn) ? p.rollupFn : 'show'
         }
+        if (type === 'formula' && typeof p.formula === 'string') def.formula = p.formula
         out.properties.push(def)
       }
     }
@@ -97,7 +109,7 @@ export function normalizeSchema(raw: unknown): DbSchema {
         if (!v || typeof v !== 'object') continue
         const { id, kind, name } = v as ViewDef
         if (typeof id !== 'string' || typeof name !== 'string') continue
-        if (kind !== 'table' && kind !== 'board' && kind !== 'calendar') continue
+        if (!['table', 'board', 'calendar', 'list', 'gallery', 'timeline'].includes(kind)) continue
         out.views.push({ ...(v as ViewDef) })
       }
     }
@@ -110,7 +122,8 @@ export function normalizeSchema(raw: unknown): DbSchema {
 
 const PROPERTY_TYPES: readonly PropertyType[] = [
   'text', 'number', 'select', 'date', 'checkbox',
-  'multi-select', 'url', 'relation', 'rollup',
+  'multi-select', 'url', 'relation', 'rollup', 'formula', 'person',
+  'created-time', 'last-edited-time', 'created-by', 'last-edited-by', 'files',
 ]
 
 function isPropertyType(t: unknown): t is PropertyType {
@@ -126,7 +139,8 @@ function isRollupFn(f: unknown): f is RollupFn {
 /** Coerce a raw cell edit (always a string from <input>) to the property's storage type. */
 export function coerceValue(type: PropertyType, raw: string | boolean): unknown {
   if (type === 'checkbox') return raw === true || raw === 'true'
-  if (type === 'rollup') return null // computed, never stored
+  if (type === 'rollup' || type === 'formula' || type === 'created-time' ||
+      type === 'last-edited-time' || type === 'created-by' || type === 'last-edited-by') return null
   if (typeof raw !== 'string') return null
   const s = raw.trim()
   if (s === '') return null
@@ -134,7 +148,7 @@ export function coerceValue(type: PropertyType, raw: string | boolean): unknown 
     const n = Number(s)
     return Number.isFinite(n) ? n : null
   }
-  if (type === 'multi-select' || type === 'relation') {
+  if (type === 'multi-select' || type === 'relation' || type === 'files') {
     const items = s.split(',').map((x) => x.trim()).filter((x) => x !== '')
     return items.length > 0 ? items : null
   }
@@ -146,7 +160,7 @@ export function formatValue(type: PropertyType, value: unknown): string {
   if (value === null || value === undefined) return ''
   if (type === 'checkbox') return value === true ? 'true' : 'false'
   if (type === 'number') return typeof value === 'number' ? String(value) : ''
-  if (type === 'multi-select' || type === 'relation') {
+  if (type === 'multi-select' || type === 'relation' || type === 'files') {
     return Array.isArray(value)
       ? value.filter((v): v is string => typeof v === 'string').join(', ')
       : ''
@@ -169,4 +183,157 @@ export function computeRollup(fn: RollupFn, values: unknown[]): string {
   if (fn === 'avg') return String(nums.reduce((a, b) => a + b, 0) / nums.length)
   if (fn === 'min') return String(Math.min(...nums))
   return String(Math.max(...nums)) // max
+}
+
+function viewValue(row: ViewRow, property: string, schema?: DbSchema): unknown {
+  if (property === 'title') return row.title
+  const definition = schema?.properties.find((candidate) => candidate.id === property)
+  if (definition?.type === 'formula') return evaluateFormula(definition.formula ?? '', row, schema!)
+  if (definition?.type === 'created-time') return row.created_at
+  if (definition?.type === 'last-edited-time') return row.updated_at
+  if (definition?.type === 'created-by' || definition?.type === 'last-edited-by') return 'You'
+  return row.props?.[property]
+}
+
+function isEmpty(value: unknown): boolean {
+  return value === null || value === undefined || value === '' || (Array.isArray(value) && value.length === 0)
+}
+
+/** Apply one persisted database view without mutating the repository rows. */
+export function applyView<T extends ViewRow>(rows: T[], view: ViewDef, schema?: DbSchema): T[] {
+  const filtered = view.filter
+    ? rows.filter((row) => {
+        const actual = viewValue(row, view.filter!.property, schema)
+        const expected = view.filter!.equals
+        if (isEmpty(expected)) return isEmpty(actual)
+        if (Array.isArray(actual)) return actual.includes(expected)
+        return actual === expected
+      })
+    : rows.slice()
+
+  if (!view.sortBy) return filtered
+  const direction = view.sortDir === 'desc' ? -1 : 1
+  return filtered
+    .map((row, index) => ({ row, index }))
+    .sort((a, b) => {
+      const av = viewValue(a.row, view.sortBy!, schema)
+      const bv = viewValue(b.row, view.sortBy!, schema)
+      if (isEmpty(av) || isEmpty(bv)) {
+        if (isEmpty(av) && isEmpty(bv)) return a.index - b.index
+        return isEmpty(av) ? 1 : -1
+      }
+      const compared =
+        typeof av === 'number' && typeof bv === 'number'
+          ? av - bv
+          : String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: 'base' })
+      return compared === 0 ? a.index - b.index : compared * direction
+    })
+    .map(({ row }) => row)
+}
+
+/** Evaluate the deliberately small, side-effect-free database formula grammar. */
+export function evaluateFormula(expression: string, row: ViewRow, schema: DbSchema): string {
+  let index = 0
+  const skip = () => {
+    while (/\s/.test(expression[index] ?? '')) index++
+  }
+  const numeric = (value: string | number): number => {
+    const number = typeof value === 'number' ? value : value.trim() === '' ? NaN : Number(value)
+    if (!Number.isFinite(number)) throw new Error('Expected number')
+    return number
+  }
+  const parsePrimary = (): string | number => {
+    skip()
+    if (expression[index] === '(') {
+      index++
+      const value = parseExpression()
+      skip()
+      if (expression[index++] !== ')') throw new Error('Missing )')
+      return value
+    }
+    if (expression[index] === '"' || expression[index] === "'") {
+      const quote = expression[index++]
+      let value = ''
+      while (index < expression.length && expression[index] !== quote) {
+        if (expression[index] === '\\' && index + 1 < expression.length) index++
+        value += expression[index++]
+      }
+      if (expression[index++] !== quote) throw new Error('Missing quote')
+      return value
+    }
+    if (expression[index] === '[') {
+      const end = expression.indexOf(']', index + 1)
+      if (end === -1) throw new Error('Missing ]')
+      const name = expression.slice(index + 1, end).trim()
+      index = end + 1
+      const property = schema.properties.find((candidate) => candidate.name.toLowerCase() === name.toLowerCase())
+      const value = name.toLowerCase() === 'title' ? row.title : property ? row.props?.[property.id] : undefined
+      if (typeof value !== 'string' && typeof value !== 'number') throw new Error('Missing value')
+      return value
+    }
+    const number = /^(?:\d+(?:\.\d*)?|\.\d+)/.exec(expression.slice(index))?.[0]
+    if (!number) throw new Error('Expected value')
+    index += number.length
+    return Number(number)
+  }
+  const parseUnary = (): string | number => {
+    skip()
+    if (expression[index] === '-') {
+      index++
+      return -numeric(parseUnary())
+    }
+    return parsePrimary()
+  }
+  const parseTerm = (): string | number => {
+    let value = parseUnary()
+    while (true) {
+      skip()
+      const operator = expression[index]
+      if (operator !== '*' && operator !== '/') break
+      index++
+      const right = numeric(parseUnary())
+      value = operator === '*' ? numeric(value) * right : right === 0 ? NaN : numeric(value) / right
+      if (!Number.isFinite(value)) throw new Error('Invalid arithmetic')
+    }
+    return value
+  }
+  const parseExpression = (): string | number => {
+    let value = parseTerm()
+    while (true) {
+      skip()
+      const operator = expression[index]
+      if (operator !== '+' && operator !== '-') break
+      index++
+      const right = parseTerm()
+      value = operator === '+'
+        ? typeof value === 'number' && typeof right === 'number' ? value + right : String(value) + String(right)
+        : numeric(value) - numeric(right)
+    }
+    return value
+  }
+  try {
+    const value = parseExpression()
+    skip()
+    return index === expression.length ? String(value) : ''
+  } catch {
+    return ''
+  }
+}
+
+export function groupRows<T extends ViewRow>(rows: T[], property: string, schema?: DbSchema): Array<{ label: string; rows: T[] }> {
+  const groups = new Map<string, { label: string; rows: T[] }>()
+  const empty: T[] = []
+  for (const row of rows) {
+    const value = viewValue(row, property, schema)
+    if (isEmpty(value)) {
+      empty.push(row)
+      continue
+    }
+    const label = Array.isArray(value) ? value.join(', ') : value === true ? 'Checked' : value === false ? 'Unchecked' : String(value)
+    const key = `${typeof value}:${label}`
+    const group = groups.get(key) ?? { label, rows: [] }
+    group.rows.push(row)
+    groups.set(key, group)
+  }
+  return [...groups.values(), ...(empty.length > 0 ? [{ label: 'No value', rows: empty }] : [])]
 }
