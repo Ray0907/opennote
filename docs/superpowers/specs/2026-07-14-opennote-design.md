@@ -79,6 +79,21 @@ Key decisions:
   search (trigram-based for CJK correctness, F1), Markdown import/export.
   *Accept*: linking two pages shows a backlink; search finds CJK and Latin
   text; a page exports to `.md` and reimports losslessly enough to read.
+- **M5 — Rich properties**: relation, rollup, and multi-select property
+  types for database pages, coerced/formatted via the shared schema helpers.
+  *Accept*: a relation links rows across databases; a rollup aggregates
+  (count/sum/avg/min/max/show) over the related rows; multi-select renders
+  and edits tag lists; all round-trip through sync.
+- **M6 — Page chrome**: trash with restore (soft-delete + subtree
+  tombstones), favorites section in the sidebar, page icon (emoji picker)
+  and cover (CSS gradient) in the editor header.
+  *Accept*: deleting a page moves it to trash and restore brings back its
+  subtree; toggling a favorite pins it in the sidebar; icon and cover
+  persist, sync, and survive restart.
+- **M7 — Ship**: page templates (create page from template) and
+  electron-builder packaging for macOS/Windows/Linux.
+  *Accept*: a new page can be created from a template; `npm run dist`
+  produces an installable artifact on the host platform.
 
 Every milestone ends with a git commit + tag (`m1`, `m2`, ...). Spec baseline
 is tagged `snapshot-0-spec`.
