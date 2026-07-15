@@ -82,6 +82,20 @@ describe('blocksToMarkdown', () => {
     expect(md).toContain('[notes.pdf](../attachments/notes.pdf)')
   })
 
+  it('round-trips video and audio blocks through the mirror (no plain-text degrade)', () => {
+    const md = blocksToMarkdown([
+      block('video', [], { props: { url: 'attachments/clip.mp4', name: 'clip.mp4' } }),
+      block('audio', [], { props: { url: 'attachments/take.mp3', caption: 'Voice memo' } }),
+    ])
+    expect(md).toContain('[clip.mp4](attachments/clip.mp4)<!-- opennote:video -->')
+    expect(md).toContain('[Voice memo](attachments/take.mp3)<!-- opennote:audio -->')
+
+    const back = markdownToBlocks(md)
+    expect(back.map((b) => b.type)).toEqual(['video', 'audio'])
+    expect(back[0].props).toMatchObject({ url: 'attachments/clip.mp4', name: 'clip.mp4' })
+    expect(back[1].props).toMatchObject({ url: 'attachments/take.mp3', name: 'Voice memo' })
+  })
+
   it('renders inline page and linked database references as durable app links', () => {
     const md = blocksToMarkdown([
       block('pageLink', [], { props: { pageId: 'page-1', title: 'Child page' } }),

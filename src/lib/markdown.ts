@@ -152,6 +152,12 @@ function serializeBlock(block: BNBlock, ctx: Ctx): string[] {
       lines.push(`${ctx.indent}[${label}](${attachmentUrl(props.url, ctx.attachmentPrefix)})<!-- opennote:file -->`)
       break
     }
+    case 'video':
+    case 'audio': {
+      const label = String(props.caption || props.name || (block.type === 'video' ? 'Video' : 'Audio'))
+      lines.push(`${ctx.indent}[${label}](${attachmentUrl(props.url, ctx.attachmentPrefix)})<!-- opennote:${block.type} -->`)
+      break
+    }
     case 'pageLink':
       lines.push(`${ctx.indent}[${String(props.title || 'Untitled')}](opennote://page/${String(props.pageId || '')})`)
       break
@@ -425,12 +431,14 @@ export function markdownToBlocks(md: string, id: IdFactory = defaultId): BNBlock
       i++
       continue
     }
-    const file = /^\[([^\]]*)\]\(([^)]+)\)<!-- opennote:file -->$/.exec(raw.trim())
+    const file = /^\[([^\]]*)\]\(([^)]+)\)<!-- opennote:(file|video|audio) -->$/.exec(raw.trim())
     if (file) {
+      const kind = file[3] as 'file' | 'video' | 'audio'
+      const fallback = kind === 'video' ? 'Video' : kind === 'audio' ? 'Audio' : 'File'
       roots.push({
         id: id(),
-        type: 'file',
-        props: { url: canonicalAttachmentUrl(file[2]), name: file[1] || 'File' },
+        type: kind,
+        props: { url: canonicalAttachmentUrl(file[2]), name: file[1] || fallback },
         content: [],
         children: [],
       })
