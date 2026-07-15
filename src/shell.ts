@@ -9,6 +9,20 @@ export interface ImportedFile {
   content: string
 }
 
+export interface VaultRevision {
+  hash: string
+  date: string
+  message: string
+}
+
+export const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024
+
+export function assertAttachmentSize(size: number): void {
+  if (size > MAX_ATTACHMENT_BYTES) {
+    throw new Error('Attachments must be 50 MB or smaller.')
+  }
+}
+
 export interface ShellApi {
   /** Atomically write a mirror file, path relative to the vault root. */
   writeMirror(relPath: string, content: string): Promise<void>
@@ -24,6 +38,24 @@ export interface ShellApi {
   exportMarkdown(defaultName: string, content: string): Promise<string | null>
   /** Open-dialog + read .md files. Resolves to files, or null if cancelled. */
   importMarkdown(): Promise<ImportedFile[] | null>
+  /** Persist an editor upload and return the URL stored in the block. */
+  saveAttachment(name: string, type: string, data: ArrayBuffer): Promise<string>
+  /** Git-backed revisions for one mirror path, newest first. */
+  listHistory(relPath: string): Promise<VaultRevision[]>
+  /** Read one historical mirror file without changing the vault. */
+  readHistory(relPath: string, hash: string): Promise<string | null>
+}
+
+export function attachmentDisplayUrl(url: string, desktop: boolean): string {
+  if (!desktop || !url.startsWith('attachments/')) return url
+  return `opennote-asset://vault/${url.split('/').map(encodeURIComponent).join('/')}`
+}
+
+export function parseGitHistory(raw: string): VaultRevision[] {
+  return raw.split('\n').flatMap((line) => {
+    const [hash, date, message] = line.split('\u001f')
+    return hash && date && message ? [{ hash, date, message }] : []
+  })
 }
 
 const noopShell: ShellApi = {
@@ -71,11 +103,37 @@ const noopShell: ShellApi = {
       input.click()
     })
   },
+  saveAttachment(_name, type, data) {
+    assertAttachmentSize(data.byteLength)
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result))
+      reader.onerror = () => reject(reader.error)
+      reader.readAsDataURL(new Blob([data], { type: type || 'application/octet-stream' }))
+    })
+  },
+  async listHistory() {
+    return []
+  },
+  async readHistory() {
+    return null
+  },
 }
 
 export function getShell(): ShellApi {
   const injected = window.opennote
   if (!injected) return noopShell
   // The preload bridge doesn't carry isDesktop; derive it here.
-  return { ...injected, isDesktop: true }
+  return {
+    ...injected,
+    isDesktop: true,
+    saveAttachment(name, type, data) {
+      assertAttachmentSize(data.byteLength)
+      return injected.saveAttachment(name, type, data)
+    },
+    async listHistory(relPath) {
+      const raw = await injected.listHistory(relPath) as unknown
+      return parseGitHistory(typeof raw === 'string' ? raw : '')
+    },
+  }
 }

@@ -19,6 +19,9 @@ interface SidebarProps {
   themePref: 'system' | 'light' | 'dark'
   onCycleTheme: () => void
   onOpenTrash: () => void
+  onDuplicate: (id: string) => void
+  onMove: (id: string, parentId: string | null) => void
+  onReorder: (id: string, beforeId: string) => void
 }
 
 interface TreeNodeProps
@@ -32,13 +35,19 @@ interface TreeNodeProps
     | 'themePref'
     | 'onCycleTheme'
     | 'onOpenTrash'
+    | 'onDuplicate'
+    | 'onMove'
+    | 'onReorder'
   > {
   page: Page
   childrenOf: Map<string | null, Page[]>
   depth: number
+  onRequestMove: (id: string) => void
+  onDuplicate: (id: string) => void
+  onReorder: (id: string, beforeId: string) => void
 }
 
-function TreeNode({ page, childrenOf, depth, selectedId, onSelect, onCreate, onDelete, onToggleFavorite }: TreeNodeProps) {
+function TreeNode({ page, childrenOf, depth, selectedId, onSelect, onCreate, onDelete, onToggleFavorite, onRequestMove, onDuplicate, onReorder }: TreeNodeProps) {
   const children = childrenOf.get(page.id) ?? []
   return (
     <div>
@@ -48,6 +57,21 @@ function TreeNode({ page, childrenOf, depth, selectedId, onSelect, onCreate, onD
         role="button"
         tabIndex={0}
         aria-current={page.id === selectedId ? 'page' : undefined}
+        draggable
+        onDragStart={(event) => {
+          event.dataTransfer.effectAllowed = 'move'
+          event.dataTransfer.setData('application/x-opennote-page', page.id)
+        }}
+        onDragOver={(event) => {
+          event.preventDefault()
+          event.dataTransfer.dropEffect = 'move'
+        }}
+        onDrop={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          const draggedId = event.dataTransfer.getData('application/x-opennote-page')
+          if (draggedId && draggedId !== page.id) onReorder(draggedId, page.id)
+        }}
         onClick={() => onSelect(page.id)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -61,6 +85,26 @@ function TreeNode({ page, childrenOf, depth, selectedId, onSelect, onCreate, onD
           {page.title || 'Untitled'}
         </span>
         <span className="tree-actions">
+          <button
+            aria-label="Duplicate page"
+            title="Duplicate page"
+            onClick={(e) => {
+              e.stopPropagation()
+              onDuplicate(page.id)
+            }}
+          >
+            ⧉
+          </button>
+          <button
+            aria-label="Move page"
+            title="Move page"
+            onClick={(e) => {
+              e.stopPropagation()
+              onRequestMove(page.id)
+            }}
+          >
+            ↪
+          </button>
           <button
             aria-label={page.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
             title={page.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
@@ -104,6 +148,9 @@ function TreeNode({ page, childrenOf, depth, selectedId, onSelect, onCreate, onD
           onCreate={onCreate}
           onDelete={onDelete}
           onToggleFavorite={onToggleFavorite}
+          onRequestMove={onRequestMove}
+          onDuplicate={onDuplicate}
+          onReorder={onReorder}
         />
       ))}
     </div>
@@ -124,8 +171,13 @@ export function Sidebar({
   themePref,
   onCycleTheme,
   onOpenTrash,
+  onDuplicate,
+  onMove,
+  onReorder,
 }: SidebarProps) {
   const [showTemplates, setShowTemplates] = useState(false)
+  const [movingId, setMovingId] = useState<string | null>(null)
+  const [collapsed, setCollapsed] = useState(false)
   const childrenOf = new Map<string | null, Page[]>()
   for (const page of pages) {
     const key = page.parent_id
@@ -134,12 +186,40 @@ export function Sidebar({
   }
   const roots = childrenOf.get(null) ?? []
   const favorites = pages.filter((p) => p.is_favorite)
+  const moving = pages.find((page) => page.id === movingId)
+  const unavailableTargets = new Set<string>(movingId ? [movingId] : [])
+  if (movingId) {
+    let changed = true
+    while (changed) {
+      changed = false
+      for (const page of pages) {
+        if (page.parent_id && unavailableTargets.has(page.parent_id) && !unavailableTargets.has(page.id)) {
+          unavailableTargets.add(page.id)
+          changed = true
+        }
+      }
+    }
+  }
+  const navigateTree = (event: React.KeyboardEvent<HTMLElement>) => {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+    const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('.tree-item[role="button"]'))
+    const current = (event.target as HTMLElement).closest<HTMLElement>('.tree-item[role="button"]')
+    const index = current ? items.indexOf(current) : -1
+    const next = event.key === 'ArrowDown' ? items[index + 1] : items[index - 1]
+    if (next) {
+      event.preventDefault()
+      next.focus()
+    }
+  }
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar${collapsed ? ' collapsed' : ''}`}>
       <div className="sidebar-header">
-        <span className="wordmark">OpenNote</span>
+        <span className="wordmark">{collapsed ? 'O' : 'OpenNote'}</span>
         <div className="sidebar-header-actions">
+          <button title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={() => setCollapsed((value) => !value)}>
+            {collapsed ? '›' : '‹'}
+          </button>
           <button
             className="theme-toggle"
             title={`Theme: ${themePref} (click to change)`}
@@ -157,7 +237,7 @@ export function Sidebar({
         </div>
       </div>
       {favorites.length > 0 && (
-        <nav className="tree tree-favorites">
+        <nav className="tree tree-favorites" onKeyDown={navigateTree}>
           <div className="tree-section-label">Favorites</div>
           {favorites.map((page) => (
             <div
@@ -195,7 +275,7 @@ export function Sidebar({
           ))}
         </nav>
       )}
-      <nav className="tree">
+      <nav className="tree" onKeyDown={navigateTree}>
         <div className="tree-section-label">Pages</div>
         {roots.map((page) => (
           <TreeNode
@@ -208,10 +288,34 @@ export function Sidebar({
             onCreate={onCreate}
             onDelete={onDelete}
             onToggleFavorite={onToggleFavorite}
+            onRequestMove={setMovingId}
+            onDuplicate={onDuplicate}
+            onReorder={onReorder}
           />
         ))}
         {roots.length === 0 && <div className="tree-empty">No pages yet</div>}
       </nav>
+      {moving && (
+        <div className="move-picker" role="dialog" aria-label="Move page">
+          <strong>Move “{moving.title || 'Untitled'}”</strong>
+          <select
+            aria-label="New parent"
+            defaultValue=""
+            onChange={(event) => {
+              if (!event.target.value) return
+              onMove(moving.id, event.target.value === '__root' ? null : event.target.value)
+              setMovingId(null)
+            }}
+          >
+            <option value="">Choose destination…</option>
+            <option value="__root">Top level</option>
+            {pages.filter((page) => !unavailableTargets.has(page.id) && !page.is_database).map((page) => (
+              <option key={page.id} value={page.id}>{page.title || 'Untitled'}</option>
+            ))}
+          </select>
+          <button onClick={() => setMovingId(null)}>Cancel</button>
+        </div>
+      )}
       {showTemplates && (
         <div className="template-menu">
           {TEMPLATES.map((t) => (

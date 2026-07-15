@@ -68,6 +68,18 @@ export function serializeInline(content: unknown): string {
 interface Ctx {
   indent: string
   listIndex: number
+  attachmentPrefix: string
+}
+
+function attachmentUrl(url: unknown, prefix: string): string {
+  if (typeof url !== 'string') return ''
+  return url.startsWith('attachments/') ? prefix + url : url
+}
+
+function canonicalAttachmentUrl(url: string): string {
+  return /^(?:\.\.\/)*attachments\//.test(url)
+    ? url.replace(/^(?:\.\.\/)*attachments\//, 'attachments/')
+    : url
 }
 
 function serializeBlock(block: BNBlock, ctx: Ctx): string[] {
@@ -75,6 +87,21 @@ function serializeBlock(block: BNBlock, ctx: Ctx): string[] {
   const props = block.props ?? {}
   const lines: string[] = []
   let childIndent = ctx.indent
+  let closeDetails = false
+
+  if (block.type === 'columns') {
+    const columns = block.children ?? []
+    lines.push(`${ctx.indent}<div class="opennote-columns" data-columns="${Number(props.columns) || columns.length || 2}">`)
+    for (const column of columns) {
+      lines.push(`${ctx.indent}<section class="opennote-column">`)
+      for (const child of column.children ?? []) {
+        lines.push(...serializeBlock(child, { ...ctx, listIndex: 1 }))
+      }
+      lines.push(`${ctx.indent}</section>`)
+    }
+    lines.push(`${ctx.indent}</div>`)
+    return lines
+  }
 
   switch (block.type) {
     case 'heading': {
@@ -104,6 +131,33 @@ function serializeBlock(block: BNBlock, ctx: Ctx): string[] {
     case 'quote':
       lines.push(`${ctx.indent}> ${text}`)
       break
+    case 'callout':
+      lines.push(`${ctx.indent}> [!NOTE] ${String(props.icon || '💡')} ${text}`)
+      break
+    case 'toggle':
+      lines.push(`${ctx.indent}<details${props.collapsed ? '' : ' open'}>`)
+      lines.push(`${ctx.indent}<summary>${text}</summary>`)
+      lines.push('')
+      closeDetails = true
+      break
+    case 'column':
+      break
+    case 'image': {
+      const label = String(props.caption || props.name || '')
+      lines.push(`${ctx.indent}![${label}](${attachmentUrl(props.url, ctx.attachmentPrefix)})`)
+      break
+    }
+    case 'file': {
+      const label = String(props.name || props.caption || 'File')
+      lines.push(`${ctx.indent}[${label}](${attachmentUrl(props.url, ctx.attachmentPrefix)})<!-- opennote:file -->`)
+      break
+    }
+    case 'pageLink':
+      lines.push(`${ctx.indent}[${String(props.title || 'Untitled')}](opennote://page/${String(props.pageId || '')})`)
+      break
+    case 'databaseView':
+      lines.push(`${ctx.indent}[${String(props.title || 'Database')}](opennote://database/${String(props.databaseId || '')})`)
+      break
     case 'paragraph':
     default:
       lines.push(`${ctx.indent}${text}`)
@@ -113,18 +167,19 @@ function serializeBlock(block: BNBlock, ctx: Ctx): string[] {
   if (block.children && block.children.length > 0) {
     let listIndex = 1
     for (const child of block.children) {
-      lines.push(...serializeBlock(child, { indent: childIndent, listIndex }))
+      lines.push(...serializeBlock(child, { indent: childIndent, listIndex, attachmentPrefix: ctx.attachmentPrefix }))
       listIndex = child.type === 'numberedListItem' ? listIndex + 1 : 1
     }
   }
+  if (closeDetails) lines.push(`${ctx.indent}</details>`)
   return lines
 }
 
-export function blocksToMarkdown(blocks: BNBlock[]): string {
+export function blocksToMarkdown(blocks: BNBlock[], attachmentPrefix = ''): string {
   const out: string[] = []
   let listIndex = 1
   for (const block of blocks) {
-    out.push(...serializeBlock(block, { indent: '', listIndex }))
+    out.push(...serializeBlock(block, { indent: '', listIndex, attachmentPrefix }))
     listIndex = block.type === 'numberedListItem' ? listIndex + 1 : 1
     out.push('') // blank line between top-level blocks
   }
@@ -136,7 +191,7 @@ function yamlEscape(value: string): string {
 }
 
 /** Full mirror file: YAML frontmatter (page identity) + markdown body. */
-export function pageToMarkdown(page: MirrorPage, blocks: BNBlock[]): string {
+export function pageToMarkdown(page: MirrorPage, blocks: BNBlock[], attachmentPrefix = ''): string {
   const fm = [
     '---',
     `id: ${page.id}`,
@@ -146,7 +201,12 @@ export function pageToMarkdown(page: MirrorPage, blocks: BNBlock[]): string {
     '---',
     '',
   ]
-  return fm.join('\n') + blocksToMarkdown(blocks)
+  return fm.join('\n') + blocksToMarkdown(blocks, attachmentPrefix)
+}
+
+/** Prefix from a nested mirror file back to the vault-root attachments folder. */
+export function attachmentPrefixForMirror(relPath: string): string {
+  return '../'.repeat(Math.max(0, relPath.split('/').length - 1))
 }
 
 // ---------------------------------------------------------------------------
@@ -243,6 +303,8 @@ function classifyLine(raw: string): ParsedLine {
     return { indent, type: 'bulletListItem', props: {}, text: m[1] }
   if ((m = /^\d+\.\s+(.*)$/.exec(line)))
     return { indent, type: 'numberedListItem', props: {}, text: m[1] }
+  if ((m = /^>\s*\[!NOTE\]\s+(\S+)\s*(.*)$/.exec(line)))
+    return { indent, type: 'callout', props: { icon: m[1] }, text: m[2] }
   if ((m = /^>\s?(.*)$/.exec(line)))
     return { indent, type: 'quote', props: {}, text: m[1] }
   return { indent, type: 'paragraph', props: {}, text: line }
@@ -284,6 +346,100 @@ export function markdownToBlocks(md: string, id: IdFactory = defaultId): BNBlock
         children: [],
       })
       stack.length = 0
+      continue
+    }
+    const details = /^<details( open)?>\s*$/.exec(raw.trim())
+    if (details) {
+      const summary = /^<summary>(.*)<\/summary>\s*$/.exec(lines[i + 1]?.trim() ?? '')
+      if (!summary) {
+        i++
+        continue
+      }
+      i += 2
+      const body: string[] = []
+      while (i < lines.length && lines[i].trim() !== '</details>') body.push(lines[i++])
+      if (i < lines.length) i++
+      roots.push({
+        id: id(),
+        type: 'toggle',
+        props: { collapsed: !details[1] },
+        content: parseInline(summary[1]),
+        children: markdownToBlocks(body.join('\n'), id),
+      })
+      stack.length = 0
+      continue
+    }
+    const columns = /^<div class="opennote-columns" data-columns="(\d+)">\s*$/.exec(raw.trim())
+    if (columns) {
+      const children: BNBlock[] = []
+      i++
+      while (i < lines.length && lines[i].trim() !== '</div>') {
+        if (lines[i].trim() !== '<section class="opennote-column">') {
+          i++
+          continue
+        }
+        i++
+        const body: string[] = []
+        while (i < lines.length && lines[i].trim() !== '</section>') body.push(lines[i++])
+        if (i < lines.length) i++
+        children.push({
+          id: id(),
+          type: 'column',
+          props: {},
+          content: [],
+          children: markdownToBlocks(body.join('\n'), id),
+        })
+      }
+      if (i < lines.length) i++
+      roots.push({
+        id: id(),
+        type: 'columns',
+        props: { columns: Number(columns[1]) },
+        content: [],
+        children,
+      })
+      stack.length = 0
+      continue
+    }
+    const reference = /^\[([^\]]*)\]\(opennote:\/\/(page|database)\/([^)]+)\)$/.exec(raw.trim())
+    if (reference) {
+      roots.push({
+        id: id(),
+        type: reference[2] === 'page' ? 'pageLink' : 'databaseView',
+        props: reference[2] === 'page'
+          ? { pageId: reference[3], title: reference[1] }
+          : { databaseId: reference[3], title: reference[1] },
+        content: [],
+        children: [],
+      })
+      stack.length = 0
+      i++
+      continue
+    }
+    const file = /^\[([^\]]*)\]\(([^)]+)\)<!-- opennote:file -->$/.exec(raw.trim())
+    if (file) {
+      roots.push({
+        id: id(),
+        type: 'file',
+        props: { url: canonicalAttachmentUrl(file[2]), name: file[1] || 'File' },
+        content: [],
+        children: [],
+      })
+      stack.length = 0
+      i++
+      continue
+    }
+    const image = /^!\[([^\]]*)\]\(([^)]+)\)$/.exec(raw.trim())
+    if (image) {
+      roots.push({
+        id: id(),
+        type: 'image',
+        props: { url: canonicalAttachmentUrl(image[2]), name: image[1], caption: image[1] },
+        content: [],
+        children: [],
+      })
+      stack.length = 0
+      i++
       continue
     }
     const parsed = classifyLine(raw)

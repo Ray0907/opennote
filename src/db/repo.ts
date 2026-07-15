@@ -8,7 +8,7 @@ import type { Queryable } from '../../shared/sync'
 import { keyBetween } from '../lib/sortkey'
 import { extractWikiLinks } from '../lib/wikilinks'
 import { extractPlainText, makeSnippet } from '../lib/plaintext'
-import type { BNBlock } from '../lib/markdown'
+import { sanitizeFileName, type BNBlock } from '../lib/markdown'
 
 export interface Page {
   id: string
@@ -151,11 +151,28 @@ export async function deletePage(db: PGlite, id: string): Promise<void> {
 }
 
 /** Move a page under a new parent, appended as the last child. */
+async function assertValidParent(db: PGlite, id: string, newParentId: string | null): Promise<void> {
+  if (!newParentId) return
+  const { rows } = await db.query<{ exists: boolean; cycle: boolean }>(
+    `WITH RECURSIVE ancestors AS (
+       SELECT id, parent_id FROM pages WHERE id = $2 AND deleted_at IS NULL
+       UNION ALL
+       SELECT p.id, p.parent_id FROM pages p JOIN ancestors a ON p.id = a.parent_id
+     )
+     SELECT EXISTS(SELECT 1 FROM ancestors WHERE id = $2) AS exists,
+            EXISTS(SELECT 1 FROM ancestors WHERE id = $1) AS cycle`,
+    [id, newParentId],
+  )
+  if (!rows[0]?.exists) throw new Error('Move target does not exist')
+  if (rows[0].cycle) throw new Error('Cannot move a page into its own subtree')
+}
+
 export async function movePage(
   db: PGlite,
   id: string,
   newParentId: string | null,
 ): Promise<void> {
+  await assertValidParent(db, id, newParentId)
   const { rows } = await db.query<{ sort_key: string }>(
     `SELECT sort_key FROM pages
       WHERE parent_id IS NOT DISTINCT FROM $1 AND deleted_at IS NULL AND id <> $2
@@ -167,6 +184,123 @@ export async function movePage(
     `UPDATE pages SET parent_id = $2, sort_key = $3, updated_at = now() WHERE id = $1`,
     [id, newParentId, sortKey],
   )
+}
+
+/** Move one page immediately before another, adopting the target's parent. */
+export async function reorderPage(db: PGlite, id: string, beforeId: string): Promise<void> {
+  if (id === beforeId) return
+  const target = await getPage(db, beforeId)
+  if (!target) throw new Error('Reorder target does not exist')
+  await assertValidParent(db, id, target.parent_id)
+  const { rows } = await db.query<{ sort_key: string }>(
+    `SELECT sort_key FROM pages
+      WHERE parent_id IS NOT DISTINCT FROM $1 AND deleted_at IS NULL
+        AND id <> $2 AND id <> $3 AND sort_key < $4
+      ORDER BY sort_key DESC, id DESC LIMIT 1`,
+    [target.parent_id, id, beforeId, target.sort_key],
+  )
+  const sortKey = keyBetween(rows[0]?.sort_key ?? null, target.sort_key)
+  await db.query(
+    `UPDATE pages SET parent_id = $2, sort_key = $3, updated_at = now() WHERE id = $1`,
+    [id, target.parent_id, sortKey],
+  )
+}
+
+/** Duplicate a page and its complete subtree with fresh page/block ids. */
+export async function duplicatePage(db: PGlite, id: string): Promise<Page> {
+  const originals = await listPages(db)
+  const source = originals.find((page) => page.id === id)
+  if (!source) throw new Error('Page to duplicate does not exist')
+  const usedByParent = new Map<string, Set<string>>()
+  const titleKey = (title: string) => sanitizeFileName(title).toLocaleLowerCase()
+  const availableTitle = (parentId: string | null, desired: string): string => {
+    const key = parentId ?? '__root'
+    let used = usedByParent.get(key)
+    if (!used) {
+      used = new Set(
+        originals
+          .filter((page) => page.parent_id === parentId)
+          .map((page) => titleKey(page.title)),
+      )
+      usedByParent.set(key, used)
+    }
+    let attempt = 1
+    const candidate = () => {
+      const suffix = attempt === 1 ? '' : ` ${attempt}`
+      return desired.slice(0, Math.max(1, 120 - suffix.length)).trimEnd() + suffix
+    }
+    let title = candidate()
+    while (used.has(titleKey(title))) {
+      attempt++
+      title = candidate()
+    }
+    used.add(titleKey(title))
+    return title
+  }
+  const copies = new Map<string, Page>()
+  const createCopyTree = async (original: Page, parentId: string | null, title: string): Promise<Page> => {
+    const copy = await createPage(db, {
+      parentId,
+      title,
+      isDatabase: original.is_database,
+    })
+    copies.set(original.id, copy)
+    for (const child of originals.filter((page) => page.parent_id === original.id)) {
+      await createCopyTree(child, copy.id, availableTitle(copy.id, child.title || 'Untitled'))
+    }
+    return copy
+  }
+
+  const rootTitle = availableTitle(
+    source.parent_id,
+    `${source.title || 'Untitled'} copy`,
+  )
+  const rootCopy = await createCopyTree(source, source.parent_id, rootTitle)
+
+  const remapValue = (value: unknown): unknown => {
+    if (typeof value === 'string') {
+      const direct = copies.get(value)
+      if (direct) return direct.id
+      const reference = /^(opennote:\/\/(?:page|database)\/)(.+)$/.exec(value)
+      const referenced = reference ? copies.get(reference[2]) : undefined
+      return referenced && reference ? reference[1] + referenced.id : value
+    }
+    if (Array.isArray(value)) return value.map(remapValue)
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, remapValue(item)]),
+      )
+    }
+    return value
+  }
+  const cloneBlock = (block: BNBlock): BNBlock => ({
+    ...block,
+    id: uuid(),
+    props: remapValue(block.props) as Record<string, unknown> | undefined,
+    content: remapValue(block.content),
+    children: block.children?.map(cloneBlock),
+  })
+
+  for (const original of originals.filter((page) => copies.has(page.id))) {
+    const copy = copies.get(original.id)!
+    await db.query(
+      `UPDATE pages
+          SET icon = $2, cover = $3, db_schema = $4, props = $5, updated_at = now()
+        WHERE id = $1`,
+      [
+        copy.id,
+        original.icon,
+        original.cover,
+        original.db_schema === null ? null : JSON.stringify(remapValue(original.db_schema)),
+        original.props === null ? null : JSON.stringify(remapValue(original.props)),
+      ],
+    )
+    const blocks = (await getBlocks(db, original.id)).map((row) => cloneBlock(row.content))
+    if (blocks.length > 0) await savePageBlocks(db, copy.id, blocks)
+  }
+  const duplicated = await getPage(db, rootCopy.id)
+  if (!duplicated) throw new Error('Duplicated page vanished')
+  return duplicated
 }
 
 /** Toggle a page's favorite flag (M6). */
