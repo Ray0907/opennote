@@ -9,7 +9,7 @@
 
 export type PropertyType =
   | 'text' | 'number' | 'select' | 'date' | 'checkbox'
-  | 'multi-select' | 'url' | 'email' | 'phone' | 'relation' | 'rollup' | 'formula'
+  | 'multi-select' | 'status' | 'url' | 'email' | 'phone' | 'relation' | 'rollup' | 'formula'
   | 'person' | 'created-time' | 'last-edited-time'
   | 'created-by' | 'last-edited-by' | 'files'
 
@@ -89,7 +89,7 @@ export function normalizeSchema(raw: unknown): DbSchema {
         if (typeof id !== 'string' || typeof name !== 'string') continue
         if (!isPropertyType(type)) continue
         const def: PropertyDef = { id, name, type }
-        if (type === 'select' || type === 'multi-select') {
+        if (type === 'select' || type === 'multi-select' || type === 'status') {
           def.options = Array.isArray(p.options)
             ? p.options.filter((o): o is string => typeof o === 'string')
             : []
@@ -124,7 +124,7 @@ export function normalizeSchema(raw: unknown): DbSchema {
 
 const PROPERTY_TYPES: readonly PropertyType[] = [
   'text', 'number', 'select', 'date', 'checkbox',
-  'multi-select', 'url', 'email', 'phone', 'relation', 'rollup', 'formula', 'person',
+  'multi-select', 'status', 'url', 'email', 'phone', 'relation', 'rollup', 'formula', 'person',
   'created-time', 'last-edited-time', 'created-by', 'last-edited-by', 'files',
 ]
 
@@ -168,6 +168,26 @@ export function formatValue(type: PropertyType, value: unknown): string {
       : ''
   }
   return typeof value === 'string' ? value : ''
+}
+
+const STATUS_PALETTE = ['gray', 'blue', 'green', 'orange', 'red', 'purple', 'pink', 'teal'] as const
+export type StatusColor = (typeof STATUS_PALETTE)[number]
+
+/**
+ * Deterministic pill color for a status/select value. Common lifecycle words
+ * get Notion-style semantics (done→green, in progress→blue, todo→gray,
+ * blocked→red); anything else hashes to a stable palette slot so a given
+ * label always keeps the same color.
+ */
+export function statusColor(label: string): StatusColor {
+  const l = label.trim().toLowerCase()
+  if (/\b(done|complete|completed|closed|finished|shipped|resolved)\b/.test(l)) return 'green'
+  if (/\b(in progress|progress|doing|active|current|in review|review|wip)\b/.test(l)) return 'blue'
+  if (/\b(todo|to do|not started|backlog|new|open|planned)\b/.test(l)) return 'gray'
+  if (/\b(blocked|block|stuck|urgent|failed|fail|error|overdue)\b/.test(l)) return 'red'
+  let h = 0
+  for (let i = 0; i < l.length; i++) h = (h * 31 + l.charCodeAt(i)) >>> 0
+  return STATUS_PALETTE[h % STATUS_PALETTE.length]
 }
 
 /** Aggregate values of the rollup's target property across related rows. */

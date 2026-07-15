@@ -34,13 +34,15 @@ have since shipped. Closed:
   move-to; drag-to-reorder for tree pages and database rows.
 - **Import/search:** **Notion-CSV database import**; recently-opened pages in
   ⌘K; multi-select chip cells; autosave saving/saved state; sidebar collapse.
+- **Later pass (2026-07-15):** **table-of-contents block** (live outline,
+  mirror round-trips); **per-view column show/hide**; **status property**
+  (colored pills, groupable in board).
 
-Still open (all **P2** or **OOS**): equations/Mermaid, embeds, TOC/breadcrumb/
-button blocks, synced blocks, text/block color, status/grouped-select
-property, per-view column config, database row templates, sub-items/gantt,
-Unsplash covers, audio/video/PDF preview, Notion AI, reminders/recurring
-dates. Deliberately **OOS**: real-time collaboration/CRDT, accounts, sharing/
-permissions, @mentions, public API, teamspaces (see §5).
+Still open (all **P2** or **OOS**): equations/Mermaid, embeds, breadcrumb/
+button blocks, synced blocks, text/block color, database row templates,
+sub-items/gantt, Unsplash covers, audio/video/PDF preview, Notion AI,
+reminders/recurring dates. Deliberately **OOS**: real-time collaboration/CRDT,
+accounts, sharing/permissions, @mentions, public API, teamspaces (see §5).
 
 ---
 

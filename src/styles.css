@@ -493,6 +493,18 @@ tr:hover .db-title-cell button,
 .db-props-list { position: absolute; z-index: 20; margin-top: 4px; min-width: 160px; padding: 6px; background: var(--surface, #fff); border: 1px solid var(--hairline); border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); display: flex; flex-direction: column; gap: 2px; }
 .db-props-list label { display: flex; align-items: center; gap: 6px; padding: 3px 4px; white-space: nowrap; cursor: pointer; }
 .db-props-list input { width: auto; }
+.db-status-cell { display: inline-flex; align-items: center; gap: 5px; padding: 1px 6px; border-radius: 10px; }
+.db-status-cell .db-status-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.db-status-cell[data-color='gray']   { background: #e3e2e0; } .db-status-cell[data-color='gray']   .db-status-dot { background: #9b9a97; }
+.db-status-cell[data-color='blue']   { background: #d3e5ef; } .db-status-cell[data-color='blue']   .db-status-dot { background: #2f80ed; }
+.db-status-cell[data-color='green']  { background: #dbeddb; } .db-status-cell[data-color='green']  .db-status-dot { background: #2f9e44; }
+.db-status-cell[data-color='orange'] { background: #faebdd; } .db-status-cell[data-color='orange'] .db-status-dot { background: #d9730d; }
+.db-status-cell[data-color='red']    { background: #ffe2dd; } .db-status-cell[data-color='red']    .db-status-dot { background: #e03e3e; }
+.db-status-cell[data-color='purple'] { background: #e8deee; } .db-status-cell[data-color='purple'] .db-status-dot { background: #6940a5; }
+.db-status-cell[data-color='pink']   { background: #f5e0e9; } .db-status-cell[data-color='pink']   .db-status-dot { background: #ad1a72; }
+.db-status-cell[data-color='teal']   { background: #ddedea; } .db-status-cell[data-color='teal']   .db-status-dot { background: #0f7b6c; }
+.db-status-cell[data-color='none'] { background: none; padding-left: 0; }
+.db-status-cell select { background: none; }
 .db-group-row th { padding: 6px 8px; background: var(--desk); color: var(--ink); font-size: 12px; }
 .db-group-row th span { color: var(--muted-ink); font-weight: 400; }
 .db-files-cell { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; min-width: 110px; }

@@ -9,6 +9,7 @@ import {
   groupRows,
   localId,
   normalizeSchema,
+  statusColor,
   visibleProperties,
 } from '../src/lib/database'
 
@@ -37,6 +38,20 @@ describe('database schema helpers', () => {
     const s = createDefaultSchema()
     s.views[0].hiddenProps = [s.properties[0].id]
     expect(normalizeSchema(JSON.parse(JSON.stringify(s))).views[0].hiddenProps).toEqual([s.properties[0].id])
+  })
+
+  it('statusColor is semantic for lifecycle words and deterministic otherwise', () => {
+    expect(statusColor('Done')).toBe('green')
+    expect(statusColor('In progress')).toBe('blue')
+    expect(statusColor('Todo')).toBe('gray')
+    expect(statusColor('Blocked')).toBe('red')
+    // Unknown labels are stable across calls.
+    expect(statusColor('Waffles')).toBe(statusColor('waffles'))
+  })
+
+  it('normalizeSchema keeps status options like a select', () => {
+    const raw = { properties: [{ id: 'p1', name: 'Stage', type: 'status', options: ['A', 'B'] }], views: [] }
+    expect(normalizeSchema(raw).properties[0].options).toEqual(['A', 'B'])
   })
 
   it('visibleProperties drops hidden ones and defaults to all', () => {

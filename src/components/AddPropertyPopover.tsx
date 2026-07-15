@@ -13,6 +13,7 @@ const PROPERTY_TYPES: { value: PropertyType; label: string }[] = [
   { value: 'number', label: 'Number' },
   { value: 'select', label: 'Select' },
   { value: 'multi-select', label: 'Multi-select' },
+  { value: 'status', label: 'Status' },
   { value: 'date', label: 'Date' },
   { value: 'checkbox', label: 'Checkbox' },
   { value: 'url', label: 'URL' },
@@ -96,7 +97,7 @@ export function AddPropertyPopover({
       return
     }
     const def: PropertyDef = { id: localId('prop'), name: trimmed, type }
-    if (type === 'select' || type === 'multi-select') {
+    if (type === 'select' || type === 'multi-select' || type === 'status') {
       def.options = options.split(',').map((s) => s.trim()).filter(Boolean)
       if (def.options.length === 0) {
         setError('Add at least one option.')
@@ -158,7 +159,7 @@ export function AddPropertyPopover({
         </select>
       </label>
 
-      {(type === 'select' || type === 'multi-select') && (
+      {(type === 'select' || type === 'multi-select' || type === 'status') && (
         <label className="prop-field">
           <span>Options</span>
           <input

@@ -25,16 +25,17 @@ No account. No cloud requirement. Your files, your disk, your server.
 ## Features
 
 - **Block editor** — BlockNote rich text: headings, lists, checklists, code,
-  quotes, nested blocks, **callouts, toggles, columns**, and **image / file
-  uploads** into the vault; `/` slash commands.
+  quotes, nested blocks, **callouts, toggles, columns, a table of contents**,
+  and **image / file uploads** into the vault; `/` slash commands.
 - **Hierarchical pages** — sidebar tree with favorites, page icons, and cover
   images; drag-to-reorder over fractional-index ordering; duplicate and
   move-to. Pages can be embedded as sub-page and **linked-database** blocks.
 - **Databases** — table / board / calendar / list / gallery / timeline views
-  with filter, sort, and group-by, over typed properties: text, number,
-  select, multi-select, date, checkbox, url, **email, phone**, **relation**,
-  **rollup** (count / sum / avg / min / max / show), **formula**, files,
-  person, and created / last-edited time & by.
+  with filter, sort, group-by, and **per-view column show/hide**, over typed
+  properties: text, number, select, multi-select, **status** (colored pills),
+  date, checkbox, url, **email, phone**, **relation**, **rollup**
+  (count / sum / avg / min / max / show), **formula**, files, person, and
+  created / last-edited time & by.
 - **Wiki** — `[[wiki-links]]`, a backlinks index, and CJK-safe full-text
   search (⌘K, with recently-opened pages), plus Markdown export and
   **Markdown + Notion-CSV import**.
@@ -72,9 +73,10 @@ npm run verify       # typecheck + tests + build (CI gate)
 npm run dist         # package installers (dmg / nsis / AppImage / deb)
 ```
 
-The test suite is ~145 tests over the ordering keys, Markdown round-trip,
+The test suite is ~150 tests over the ordering keys, Markdown round-trip,
 repository layer, sync convergence (offline replay, LWW, idempotency),
-backlinks, search, Notion-CSV import, and recent-pages.
+backlinks, search, Notion-CSV import, recent-pages, and database views
+(filter / sort / column visibility / status colors).
 
 ## Repository layout
 
@@ -102,10 +104,11 @@ All shipped; each is a tagged snapshot (`git tag`):
 - [x] **M6** — trash & restore, favorites, page icons & covers, dark mode
 - [x] **M7** — page templates + electron-builder packaging
 - [x] **M8** — Notion-parity pass: filter/sort/group + list/gallery/timeline
-  views, formula / files / people / timestamp / email / phone properties,
-  callout / toggle / column blocks, image upload, sub-page & linked-database
-  blocks, git-backed page history, drag reorder, duplicate / move-to,
-  Notion-CSV import, ⌘K recents
+  views, per-view column show/hide, formula / files / people / timestamp /
+  email / phone / status properties, callout / toggle / column / table-of-
+  contents blocks, image upload, sub-page & linked-database blocks, git-backed
+  page history, drag reorder, duplicate / move-to, Notion-CSV import, ⌘K
+  recents
 
 ## License
 

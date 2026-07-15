@@ -12,6 +12,7 @@ import {
   groupRows,
   localId,
   normalizeSchema,
+  statusColor,
   visibleProperties,
   type DbSchema,
   type PropertyDef,
@@ -100,7 +101,7 @@ export function DatabaseView({ db, page, pages, onChanged, onOpenRow, onDeleteRo
 
   const addView = async (kind: ViewDef['kind']) => {
     const v: ViewDef = { id: localId('view'), kind, name: kind[0].toUpperCase() + kind.slice(1) }
-    if (kind === 'board') v.groupBy = schema.properties.find((p) => p.type === 'select')?.id
+    if (kind === 'board') v.groupBy = schema.properties.find((p) => p.type === 'select' || p.type === 'status')?.id
     if (kind === 'calendar') v.groupBy = schema.properties.find((p) => p.type === 'date')?.id
     if (kind === 'timeline') v.groupBy = schema.properties.find((p) => p.type === 'date' || p.type === 'created-time')?.id
     await saveSchema({ ...schema, views: [...schema.views, v] })
@@ -348,7 +349,7 @@ function FilterValueControl({
       </select>
     )
   }
-  if (property?.type === 'select' || property?.type === 'multi-select') {
+  if (property?.type === 'select' || property?.type === 'multi-select' || property?.type === 'status') {
     return (
       <select aria-label="Filter value" value={typeof value === 'string' ? value : ''} onChange={(e) => onChange(e.target.value)}>
         <option value="">Empty</option>
@@ -575,8 +576,8 @@ function Cell({
       }}>{option}</button>
     })}</div>
   }
-  if (prop.type === 'select') {
-    return (
+  if (prop.type === 'select' || prop.type === 'status') {
+    const select = (
       <select value={stored} onChange={(e) => void onSetCell(row, prop, e.target.value)}>
         <option value="">—</option>
         {(prop.options ?? []).map((o) => (
@@ -586,6 +587,15 @@ function Cell({
         ))}
       </select>
     )
+    if (prop.type === 'status') {
+      return (
+        <span className="db-status-cell" data-color={stored ? statusColor(stored) : 'none'}>
+          {stored && <span className="db-status-dot" aria-hidden="true" />}
+          {select}
+        </span>
+      )
+    }
+    return select
   }
   return (
     <EditableCell key={stored} type={prop.type} initial={stored} onCommit={(v) => void onSetCell(row, prop, v)} />
@@ -640,11 +650,12 @@ function BoardView({
   onAddRow: () => Promise<void>
   onReorderRow: (id: string, beforeId: string) => Promise<void>
 }) {
+  const isGroupable = (p: PropertyDef) => p.type === 'select' || p.type === 'status'
   const groupProp =
-    schema.properties.find((p) => p.id === view.groupBy && p.type === 'select') ??
-    schema.properties.find((p) => p.type === 'select')
+    schema.properties.find((p) => p.id === view.groupBy && isGroupable(p)) ??
+    schema.properties.find(isGroupable)
   if (!groupProp) {
-    return <p className="db-hint">Board views need a select property.</p>
+    return <p className="db-hint">Board views need a select or status property.</p>
   }
   const columns = [...(groupProp.options ?? []), ''] // '' = ungrouped
   return (
