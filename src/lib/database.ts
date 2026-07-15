@@ -9,7 +9,7 @@
 
 export type PropertyType =
   | 'text' | 'number' | 'select' | 'date' | 'checkbox'
-  | 'multi-select' | 'url' | 'relation' | 'rollup' | 'formula'
+  | 'multi-select' | 'url' | 'email' | 'phone' | 'relation' | 'rollup' | 'formula'
   | 'person' | 'created-time' | 'last-edited-time'
   | 'created-by' | 'last-edited-by' | 'files'
 
@@ -122,7 +122,7 @@ export function normalizeSchema(raw: unknown): DbSchema {
 
 const PROPERTY_TYPES: readonly PropertyType[] = [
   'text', 'number', 'select', 'date', 'checkbox',
-  'multi-select', 'url', 'relation', 'rollup', 'formula', 'person',
+  'multi-select', 'url', 'email', 'phone', 'relation', 'rollup', 'formula', 'person',
   'created-time', 'last-edited-time', 'created-by', 'last-edited-by', 'files',
 ]
 

@@ -184,7 +184,7 @@ ipcMain.handle(
     if (!win) return null
     const { canceled, filePaths } = await dialog.showOpenDialog(win, {
       properties: ['openFile', 'multiSelections'],
-      filters: [{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }],
+      filters: [{ name: 'Markdown & Notion CSV', extensions: ['md', 'markdown', 'txt', 'csv'] }],
     })
     if (canceled || filePaths.length === 0) return null
     return Promise.all(

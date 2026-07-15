@@ -510,6 +510,7 @@ tr:hover .db-title-cell button,
 .search-hit-title { font-size: 14px; font-weight: 500; color: var(--ink); }
 .search-hit-snippet { font-size: 12px; color: var(--muted-ink); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .search-empty { padding: 16px; font-size: 13px; color: var(--muted-ink); text-align: center; }
+.search-section { padding: 6px 16px 2px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted-ink); }
 
 /* --- M6: page cover + icon --- */
 .page-cover {

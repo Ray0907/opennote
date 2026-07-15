@@ -25,14 +25,21 @@ No account. No cloud requirement. Your files, your disk, your server.
 ## Features
 
 - **Block editor** — BlockNote rich text: headings, lists, checklists, code,
-  quotes, nested blocks; `/` slash commands.
+  quotes, nested blocks, **callouts, toggles, columns**, and **image / file
+  uploads** into the vault; `/` slash commands.
 - **Hierarchical pages** — sidebar tree with favorites, page icons, and cover
-  images; fractional-index ordering.
-- **Databases** — table / board / calendar views with typed properties: text,
-  number, select, multi-select, date, checkbox, url, **relation**, and
-  **rollup** (count / sum / avg / min / max / show).
+  images; drag-to-reorder over fractional-index ordering; duplicate and
+  move-to. Pages can be embedded as sub-page and **linked-database** blocks.
+- **Databases** — table / board / calendar / list / gallery / timeline views
+  with filter, sort, and group-by, over typed properties: text, number,
+  select, multi-select, date, checkbox, url, **email, phone**, **relation**,
+  **rollup** (count / sum / avg / min / max / show), **formula**, files,
+  person, and created / last-edited time & by.
 - **Wiki** — `[[wiki-links]]`, a backlinks index, and CJK-safe full-text
-  search (⌘K), plus Markdown import / export.
+  search (⌘K, with recently-opened pages), plus Markdown export and
+  **Markdown + Notion-CSV import**.
+- **Page history** — git-backed snapshots of the Markdown vault with in-app
+  restore.
 - **Multi-device sync** — offline-first outbox with per-block last-write-wins;
   edits queue locally and replay on reconnect.
 - **Trash & undo** — soft delete with an undo toast and a restore browser.
@@ -65,9 +72,9 @@ npm run verify       # typecheck + tests + build (CI gate)
 npm run dist         # package installers (dmg / nsis / AppImage / deb)
 ```
 
-The test suite is ~100 tests over the ordering keys, Markdown round-trip,
+The test suite is ~145 tests over the ordering keys, Markdown round-trip,
 repository layer, sync convergence (offline replay, LWW, idempotency),
-backlinks, and search.
+backlinks, search, Notion-CSV import, and recent-pages.
 
 ## Repository layout
 
@@ -94,6 +101,11 @@ All shipped; each is a tagged snapshot (`git tag`):
 - [x] **M5** — relation / rollup / multi-select property types
 - [x] **M6** — trash & restore, favorites, page icons & covers, dark mode
 - [x] **M7** — page templates + electron-builder packaging
+- [x] **M8** — Notion-parity pass: filter/sort/group + list/gallery/timeline
+  views, formula / files / people / timestamp / email / phone properties,
+  callout / toggle / column blocks, image upload, sub-page & linked-database
+  blocks, git-backed page history, drag reorder, duplicate / move-to,
+  Notion-CSV import, ⌘K recents
 
 ## License
 

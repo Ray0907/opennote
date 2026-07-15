@@ -17,6 +17,8 @@ import { DatabaseView } from './components/DatabaseView'
 import { TrashDialog } from './components/TrashDialog'
 import { Toast, type ToastState } from './components/Toast'
 import { createDefaultSchema } from './lib/database'
+import { classifyImport } from './lib/notion-import'
+import { recordRecent } from './lib/recent'
 import { getTemplate } from './lib/templates'
 import { useTheme } from './lib/theme'
 import { HistoryDialog } from './components/HistoryDialog'
@@ -109,7 +111,10 @@ export function App({ db }: { db: PGlite }) {
   const mirrorPaths = useRef(new Map<string, string>())
   const shell = useMemo(() => getShell(), [])
   const selectPage = useCallback(
-    (id: string) => selectAfterEditorFlush(id, setSelectedId),
+    (id: string) => {
+      recordRecent(id)
+      return selectAfterEditorFlush(id, setSelectedId)
+    },
     [],
   )
 
@@ -374,24 +379,38 @@ export function App({ db }: { db: PGlite }) {
     )
   }, [db, shell, selectedPage])
 
-  /** M4 import: .md files → new top-level pages (title from front-matter/H1). */
+  /**
+   * Import: Markdown → top-level pages; Notion-export `.csv` → database pages
+   * with typed rows. Pages mirror to the vault; databases live in the DB only,
+   * matching how databases are created elsewhere (they aren't mirrored).
+   */
   const handleImport = useCallback(async () => {
     const files = await shell.importMarkdown()
     if (!files || files.length === 0) return
+    const { pages, databases } = classifyImport(files)
+
     const imported: Array<{ id: string; blocks: BNBlock[] }> = []
-    for (const file of files) {
-      const fallback = file.name.replace(/\.(md|markdown|txt)$/i, '') || 'Imported page'
-      const { title, blocks } = markdownToPage(file.content, fallback)
+    for (const { title, blocks } of pages) {
       const page = await repo.createPage(db, { parentId: null, title })
       await repo.savePageBlocks(db, page.id, blocks)
       imported.push({ id: page.id, blocks })
     }
+
+    let lastDbId: string | null = null
+    for (const parsed of databases) {
+      const dbPage = await repo.createPage(db, { parentId: null, title: parsed.title, isDatabase: true })
+      await repo.setDbSchema(db, dbPage.id, parsed.schema)
+      for (const row of parsed.rows) {
+        const rowPage = await repo.createPage(db, { parentId: dbPage.id, title: row.title })
+        if (Object.keys(row.props).length > 0) await repo.setPageProps(db, rowPage.id, row.props)
+      }
+      lastDbId = dbPage.id
+    }
+
     const next = await refreshPages()
     for (const page of imported) await mirrorPage(next, page.id, page.blocks)
-    const last = imported.at(-1)
-    if (last) {
-      await selectPage(last.id)
-    }
+    const lastId = lastDbId ?? imported.at(-1)?.id
+    if (lastId) await selectPage(lastId)
   }, [db, shell, refreshPages, mirrorPage, selectPage])
 
   return (
@@ -471,6 +490,7 @@ export function App({ db }: { db: PGlite }) {
       </main>
       <SearchDialog
         db={db}
+        pages={pages}
         open={searchOpen}
         onClose={() => setSearchOpen(false)}
         onOpenPage={(id) => void selectPage(id)}

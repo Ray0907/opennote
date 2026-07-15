@@ -19,6 +19,31 @@ Legend: **P0** table-stakes for "feels like Notion" · **P1** important ·
 
 ---
 
+## 0. Status update — 2026-07-15
+
+The gap tables below are the **pre-implementation** baseline; most P0/P1 items
+have since shipped. Closed:
+
+- **Databases:** filter / sort / group-by wired (`applyView`, `groupRows`);
+  list / gallery / timeline views added; **formula, files, person,
+  created/last-edited time & by, email, phone** property types.
+- **Editor:** callout / toggle / column blocks (with Markdown-mirror
+  serialization); **image & file upload** into the vault; sub-page and
+  **linked-database** blocks.
+- **History & org:** git-backed page history + in-app restore; duplicate page;
+  move-to; drag-to-reorder for tree pages and database rows.
+- **Import/search:** **Notion-CSV database import**; recently-opened pages in
+  ⌘K; multi-select chip cells; autosave saving/saved state; sidebar collapse.
+
+Still open (all **P2** or **OOS**): equations/Mermaid, embeds, TOC/breadcrumb/
+button blocks, synced blocks, text/block color, status/grouped-select
+property, per-view column config, database row templates, sub-items/gantt,
+Unsplash covers, audio/video/PDF preview, Notion AI, reminders/recurring
+dates. Deliberately **OOS**: real-time collaboration/CRDT, accounts, sharing/
+permissions, @mentions, public API, teamspaces (see §5).
+
+---
+
 ## 1. What already reaches parity
 
 For context, these are at or near Notion's bar today:

@@ -16,6 +16,8 @@ const PROPERTY_TYPES: { value: PropertyType; label: string }[] = [
   { value: 'date', label: 'Date' },
   { value: 'checkbox', label: 'Checkbox' },
   { value: 'url', label: 'URL' },
+  { value: 'email', label: 'Email' },
+  { value: 'phone', label: 'Phone' },
   { value: 'relation', label: 'Relation' },
   { value: 'rollup', label: 'Rollup' },
   { value: 'formula', label: 'Formula' },

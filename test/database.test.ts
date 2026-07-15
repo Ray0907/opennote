@@ -80,6 +80,8 @@ describe('database schema helpers', () => {
     expect(coerceValue('text', '  hi  ')).toBe('hi')
     expect(coerceValue('date', '2026-07-14')).toBe('2026-07-14')
     expect(coerceValue('select', 'Todo')).toBe('Todo')
+    expect(coerceValue('email', ' a@b.com ')).toBe('a@b.com')
+    expect(coerceValue('phone', '+1 555 0100')).toBe('+1 555 0100')
   })
 
   it('formatValue renders stored values and blanks out mismatches', () => {

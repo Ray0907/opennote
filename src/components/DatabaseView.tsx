@@ -576,7 +576,14 @@ function EditableCell({
   const [value, setValue] = useState(initial)
   return (
     <input
-      type={type === 'number' ? 'number' : type === 'date' ? 'date' : 'text'}
+      type={
+        type === 'number' ? 'number'
+          : type === 'date' ? 'date'
+          : type === 'email' ? 'email'
+          : type === 'phone' ? 'tel'
+          : type === 'url' ? 'url'
+          : 'text'
+      }
       value={value}
       onChange={(e) => setValue(e.target.value)}
       onBlur={() => {
