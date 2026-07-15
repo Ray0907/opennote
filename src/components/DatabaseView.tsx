@@ -12,6 +12,7 @@ import {
   groupRows,
   localId,
   normalizeSchema,
+  visibleProperties,
   type DbSchema,
   type PropertyDef,
   type PropertyType,
@@ -299,6 +300,31 @@ function ViewControls({
           ))}
         </select>
       )}
+      {view.kind === 'table' && schema.properties.length > 0 && (
+        <details className="db-props-menu">
+          <summary title="Show / hide columns">Properties</summary>
+          <div className="db-props-list">
+            {schema.properties.map((property) => {
+              const hidden = (view.hiddenProps ?? []).includes(property.id)
+              return (
+                <label key={property.id}>
+                  <input
+                    type="checkbox"
+                    checked={!hidden}
+                    onChange={() => {
+                      const set = new Set(view.hiddenProps ?? [])
+                      if (set.has(property.id)) set.delete(property.id)
+                      else set.add(property.id)
+                      void onChange({ hiddenProps: set.size > 0 ? [...set] : undefined })
+                    }}
+                  />
+                  {property.name}
+                </label>
+              )
+            })}
+          </div>
+        </details>
+      )}
     </div>
   )
 }
@@ -374,12 +400,14 @@ function TableView(p: TableViewProps) {
   const groups = p.view.groupBy
     ? groupRows(p.rows, p.view.groupBy, p.schema)
     : [{ label: '', rows: p.rows }]
+  const cols = visibleProperties(p.schema, p.view)
+  const span = cols.length + 2 // title + visible props + actions
   return (
     <table className="db-table">
       <thead>
         <tr>
           <th>Title</th>
-          {p.schema.properties.map((prop) => (
+          {cols.map((prop) => (
             <th key={prop.id}>{prop.name}</th>
           ))}
           <th>
@@ -394,7 +422,7 @@ function TableView(p: TableViewProps) {
           <React.Fragment key={group.label || '__all'}>
             {p.view.groupBy && (
               <tr className="db-group-row">
-                <th colSpan={p.schema.properties.length + 2}>{group.label} <span>{group.rows.length}</span></th>
+                <th colSpan={span}>{group.label} <span>{group.rows.length}</span></th>
               </tr>
             )}
             {group.rows.map((row) => (
@@ -402,7 +430,7 @@ function TableView(p: TableViewProps) {
                 <td>
                   <TitleCell row={row} onRename={p.onRenameRow} onOpen={p.onOpenRow} />
                 </td>
-                {p.schema.properties.map((prop) => (
+                {cols.map((prop) => (
                   <td key={prop.id}>
                     <Cell prop={prop} row={row} pages={p.pages} schema={p.schema} onSetCell={p.onSetCell} onUploadFiles={p.onUploadFiles} />
                   </td>
@@ -415,7 +443,7 @@ function TableView(p: TableViewProps) {
           </React.Fragment>
         ))}
         <tr>
-          <td colSpan={p.schema.properties.length + 2}>
+          <td colSpan={span}>
             <button className="db-add-row" onClick={() => void p.onAddRow()}>
               + New
             </button>

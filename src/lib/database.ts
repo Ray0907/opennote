@@ -44,6 +44,8 @@ export interface ViewDef {
   sortBy?: string
   sortDir?: 'asc' | 'desc'
   filter?: { property: string; equals: unknown } | null
+  /** Property ids hidden in this view; absent/empty means all are shown. */
+  hiddenProps?: string[]
 }
 
 export interface DbSchema {
@@ -318,6 +320,12 @@ export function evaluateFormula(expression: string, row: ViewRow, schema: DbSche
   } catch {
     return ''
   }
+}
+
+/** Property defs shown in a view — all properties minus the view's hidden set. */
+export function visibleProperties(schema: DbSchema, view: ViewDef): PropertyDef[] {
+  const hidden = new Set(Array.isArray(view.hiddenProps) ? view.hiddenProps : [])
+  return schema.properties.filter((p) => !hidden.has(p.id))
 }
 
 export function groupRows<T extends ViewRow>(rows: T[], property: string, schema?: DbSchema): Array<{ label: string; rows: T[] }> {

@@ -9,6 +9,7 @@ import {
   groupRows,
   localId,
   normalizeSchema,
+  visibleProperties,
 } from '../src/lib/database'
 
 describe('database schema helpers', () => {
@@ -30,6 +31,19 @@ describe('database schema helpers', () => {
   it('normalizeSchema round-trips a valid schema', () => {
     const s = createDefaultSchema()
     expect(normalizeSchema(JSON.parse(JSON.stringify(s)))).toEqual(s)
+  })
+
+  it('normalizeSchema preserves a view hiddenProps list', () => {
+    const s = createDefaultSchema()
+    s.views[0].hiddenProps = [s.properties[0].id]
+    expect(normalizeSchema(JSON.parse(JSON.stringify(s))).views[0].hiddenProps).toEqual([s.properties[0].id])
+  })
+
+  it('visibleProperties drops hidden ones and defaults to all', () => {
+    const s = createDefaultSchema()
+    const [a, b] = s.properties
+    expect(visibleProperties(s, s.views[0])).toHaveLength(s.properties.length)
+    expect(visibleProperties(s, { ...s.views[0], hiddenProps: [a.id] }).map((p) => p.id)).toEqual([b.id])
   })
 
   it('normalizeSchema tolerates junk and always yields a view', () => {

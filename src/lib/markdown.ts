@@ -158,6 +158,9 @@ function serializeBlock(block: BNBlock, ctx: Ctx): string[] {
     case 'databaseView':
       lines.push(`${ctx.indent}[${String(props.title || 'Database')}](opennote://database/${String(props.databaseId || '')})`)
       break
+    case 'tableOfContents':
+      lines.push(`${ctx.indent}[Table of contents](opennote://toc)`)
+      break
     case 'paragraph':
     default:
       lines.push(`${ctx.indent}${text}`)
@@ -399,6 +402,12 @@ export function markdownToBlocks(md: string, id: IdFactory = defaultId): BNBlock
         children,
       })
       stack.length = 0
+      continue
+    }
+    if (raw.trim() === '[Table of contents](opennote://toc)') {
+      roots.push({ id: id(), type: 'tableOfContents', props: {}, content: [], children: [] })
+      stack.length = 0
+      i++
       continue
     }
     const reference = /^\[([^\]]*)\]\(opennote:\/\/(page|database)\/([^)]+)\)$/.exec(raw.trim())

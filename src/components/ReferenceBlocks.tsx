@@ -1,7 +1,7 @@
 import React, { createContext, useContext } from 'react'
 import type { PGlite } from '@electric-sql/pglite'
 import { BlockNoteSchema, defaultBlockSpecs } from '@blocknote/core'
-import { createReactBlockSpec } from '@blocknote/react'
+import { createReactBlockSpec, useEditorChange } from '@blocknote/react'
 import type { Page } from '../db/repo'
 import { DatabaseView } from './DatabaseView'
 
@@ -127,6 +127,44 @@ const ToggleBlock = createReactBlockSpec(
   },
 )
 
+const TableOfContentsBlock = createReactBlockSpec(
+  { type: 'tableOfContents', propSchema: {}, content: 'none' },
+  {
+    render: ({ editor }) => {
+      // Re-read on every edit so the outline tracks heading changes live.
+      const [, bump] = React.useReducer((x: number) => x + 1, 0)
+      useEditorChange(() => bump(), editor)
+      type DocBlock = { id: string; type: string; content?: Array<{ text?: string }>; props?: { level?: number } }
+      const headings = (editor.document as unknown as DocBlock[]).filter((b) => b.type === 'heading')
+      return (
+        <nav className="toc-block" contentEditable={false} aria-label="Table of contents">
+          {headings.length === 0 ? (
+            <span className="toc-empty">No headings yet</span>
+          ) : (
+            headings.map((h) => {
+              const label = h.content?.map((n) => n.text ?? '').join('').trim() || 'Untitled'
+              return (
+                <button
+                  key={h.id}
+                  className="toc-item"
+                  data-level={Number(h.props?.level) || 1}
+                  onClick={() => {
+                    editor.setTextCursorPosition(h.id, 'start')
+                    editor.focus()
+                  }}
+                >
+                  {label}
+                </button>
+              )
+            })
+          )}
+        </nav>
+      )
+    },
+    toExternalHTML: () => <nav aria-label="Table of contents">Table of contents</nav>,
+  },
+)
+
 const ColumnsBlock = createReactBlockSpec(
   {
     type: 'columns',
@@ -150,5 +188,6 @@ export const openNoteSchema = BlockNoteSchema.create({
     toggle: ToggleBlock,
     columns: ColumnsBlock,
     column: ColumnBlock,
+    tableOfContents: TableOfContentsBlock,
   },
 })

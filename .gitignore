@@ -11,3 +11,4 @@ opennote-sync-data/
 
 # Local agent tooling config (machine-specific absolute paths)
 .codex/
+.gstack/

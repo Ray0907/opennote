@@ -17,7 +17,10 @@ const FLUSH_EDITOR_EVENT = 'opennote:flush-editor'
 
 const text = (value: string) => [{ type: 'text' as const, text: value, styles: {} }]
 
-export function createCustomBlock(kind: 'callout' | 'toggle' | 'columns') {
+export function createCustomBlock(kind: 'callout' | 'toggle' | 'columns' | 'toc') {
+  if (kind === 'toc') {
+    return { type: 'tableOfContents' as const, props: {} }
+  }
   if (kind === 'callout') {
     return { type: 'callout' as const, props: { icon: '💡' }, content: text('Callout') }
   }
@@ -149,7 +152,7 @@ function Editor({ page, theme, initialContent, onRename, onDocumentSaved, onSetI
   const [title, setTitle] = useState(page.title)
   const databases = pages.filter((candidate) => candidate.is_database)
   const [databaseId, setDatabaseId] = useState(databases[0]?.id ?? '')
-  const [blockKind, setBlockKind] = useState<'callout' | 'toggle' | 'columns'>('callout')
+  const [blockKind, setBlockKind] = useState<'callout' | 'toggle' | 'columns' | 'toc'>('callout')
   const [saveState, setSaveState] = useState<'saved' | 'saving' | 'error'>('saved')
   const saveVersion = useRef(0)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -362,6 +365,7 @@ function Editor({ page, theme, initialContent, onRename, onDocumentSaved, onSetI
           <option value="callout">Callout</option>
           <option value="toggle">Toggle</option>
           <option value="columns">2 columns</option>
+          <option value="toc">Table of contents</option>
         </select>
         <button
           onClick={() => {

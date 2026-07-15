@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   attachmentPrefixForMirror,
   blocksToMarkdown,
+  markdownToBlocks,
   pageToMarkdown,
   sanitizeFileName,
   serializeInline,
@@ -112,6 +113,14 @@ describe('blocksToMarkdown', () => {
     expect(md).toContain('<div class="opennote-columns" data-columns="2">')
     expect(md).toContain('<section class="opennote-column">\nLeft\n</section>')
     expect(md).toContain('<section class="opennote-column">\nRight\n</section>')
+  })
+
+  it('round-trips a table-of-contents block through the mirror', () => {
+    const md = blocksToMarkdown([block('tableOfContents', [], { props: {} })])
+    expect(md).toContain('[Table of contents](opennote://toc)')
+    const back = markdownToBlocks(md)
+    expect(back).toHaveLength(1)
+    expect(back[0].type).toBe('tableOfContents')
   })
 })
 
