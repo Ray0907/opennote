@@ -416,6 +416,11 @@ body,
 .toc-block .toc-item[data-level='2'] { padding-left: 20px; }
 .toc-block .toc-item[data-level='3'] { padding-left: 32px; }
 .toc-block .toc-empty { padding: 2px 8px; color: var(--muted-ink); font-size: 13px; }
+.breadcrumb-block { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; font-size: 13px; color: var(--muted-ink); }
+.breadcrumb-block .breadcrumb-item { border: none; background: none; cursor: pointer; padding: 1px 4px; border-radius: 4px; color: var(--muted-ink); font: inherit; }
+.breadcrumb-block .breadcrumb-item:hover { color: var(--ink); background: var(--hover-wash); }
+.breadcrumb-block .breadcrumb-item:last-child { color: var(--ink); font-weight: 500; }
+.breadcrumb-block .breadcrumb-sep { color: var(--muted-ink); }
 .column-block { display: none; }
 .bn-block-outer:has(.toggle-block[data-collapsed='true']) > .bn-block > .bn-block-group {
   display: none;

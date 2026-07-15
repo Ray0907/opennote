@@ -167,6 +167,9 @@ function serializeBlock(block: BNBlock, ctx: Ctx): string[] {
     case 'tableOfContents':
       lines.push(`${ctx.indent}[Table of contents](opennote://toc)`)
       break
+    case 'breadcrumb':
+      lines.push(`${ctx.indent}[Breadcrumb](opennote://breadcrumb)`)
+      break
     case 'paragraph':
     default:
       lines.push(`${ctx.indent}${text}`)
@@ -412,6 +415,12 @@ export function markdownToBlocks(md: string, id: IdFactory = defaultId): BNBlock
     }
     if (raw.trim() === '[Table of contents](opennote://toc)') {
       roots.push({ id: id(), type: 'tableOfContents', props: {}, content: [], children: [] })
+      stack.length = 0
+      i++
+      continue
+    }
+    if (raw.trim() === '[Breadcrumb](opennote://breadcrumb)') {
+      roots.push({ id: id(), type: 'breadcrumb', props: {}, content: [], children: [] })
       stack.length = 0
       i++
       continue

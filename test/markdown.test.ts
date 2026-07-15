@@ -136,6 +136,14 @@ describe('blocksToMarkdown', () => {
     expect(back).toHaveLength(1)
     expect(back[0].type).toBe('tableOfContents')
   })
+
+  it('round-trips a breadcrumb block through the mirror', () => {
+    const md = blocksToMarkdown([block('breadcrumb', [], { props: {} })])
+    expect(md).toContain('[Breadcrumb](opennote://breadcrumb)')
+    const back = markdownToBlocks(md)
+    expect(back).toHaveLength(1)
+    expect(back[0].type).toBe('breadcrumb')
+  })
 })
 
 describe('pageToMarkdown', () => {

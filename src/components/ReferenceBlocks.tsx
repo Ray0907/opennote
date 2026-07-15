@@ -11,6 +11,8 @@ interface ReferenceContextValue {
   onChanged: () => Promise<unknown>
   onOpenPage: (id: string) => void
   onDeleteRow: (id: string) => Promise<void>
+  /** Page the editor is currently showing, for the breadcrumb block. */
+  currentPageId?: string
 }
 
 export const ReferenceBlockContext = createContext<ReferenceContextValue | null>(null)
@@ -127,6 +129,43 @@ const ToggleBlock = createReactBlockSpec(
   },
 )
 
+const BreadcrumbBlock = createReactBlockSpec(
+  { type: 'breadcrumb', propSchema: {}, content: 'none' },
+  {
+    render: () => {
+      const context = useContext(ReferenceBlockContext)
+      const trail: Page[] = []
+      if (context?.currentPageId) {
+        const byId = new Map(context.pages.map((p) => [p.id, p]))
+        const seen = new Set<string>()
+        let cur = byId.get(context.currentPageId)
+        while (cur && !seen.has(cur.id)) {
+          seen.add(cur.id)
+          trail.unshift(cur)
+          cur = cur.parent_id ? byId.get(cur.parent_id) : undefined
+        }
+      }
+      return (
+        <nav className="breadcrumb-block" contentEditable={false} aria-label="Breadcrumb">
+          {trail.length === 0 ? (
+            <span className="breadcrumb-empty">/</span>
+          ) : (
+            trail.map((p, i) => (
+              <React.Fragment key={p.id}>
+                {i > 0 && <span className="breadcrumb-sep" aria-hidden="true">/</span>}
+                <button className="breadcrumb-item" onClick={() => context?.onOpenPage(p.id)}>
+                  {p.icon ? `${p.icon} ` : ''}{p.title || 'Untitled'}
+                </button>
+              </React.Fragment>
+            ))
+          )}
+        </nav>
+      )
+    },
+    toExternalHTML: () => <nav aria-label="Breadcrumb">Breadcrumb</nav>,
+  },
+)
+
 const TableOfContentsBlock = createReactBlockSpec(
   { type: 'tableOfContents', propSchema: {}, content: 'none' },
   {
@@ -189,5 +228,6 @@ export const openNoteSchema = BlockNoteSchema.create({
     columns: ColumnsBlock,
     column: ColumnBlock,
     tableOfContents: TableOfContentsBlock,
+    breadcrumb: BreadcrumbBlock,
   },
 })

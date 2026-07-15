@@ -25,8 +25,9 @@ No account. No cloud requirement. Your files, your disk, your server.
 ## Features
 
 - **Block editor** — BlockNote rich text: headings, lists, checklists, code,
-  quotes, nested blocks, **callouts, toggles, columns, a table of contents**,
-  and **image / file uploads** into the vault; `/` slash commands.
+  quotes, nested blocks, **callouts, toggles, columns, a table of contents, a
+  breadcrumb**, and **image / file / video / audio uploads** into the vault;
+  `/` slash commands.
 - **Hierarchical pages** — sidebar tree with favorites, page icons, and cover
   images; drag-to-reorder over fractional-index ordering; duplicate and
   move-to. Pages can be embedded as sub-page and **linked-database** blocks.
@@ -106,9 +107,9 @@ All shipped; each is a tagged snapshot (`git tag`):
 - [x] **M8** — Notion-parity pass: filter/sort/group + list/gallery/timeline
   views, per-view column show/hide, formula / files / people / timestamp /
   email / phone / status properties, callout / toggle / column / table-of-
-  contents blocks, image upload, sub-page & linked-database blocks, git-backed
-  page history, drag reorder, duplicate / move-to, Notion-CSV import, ⌘K
-  recents
+  contents / breadcrumb blocks, image / video / audio upload, sub-page &
+  linked-database blocks, git-backed page history, drag reorder, duplicate /
+  move-to, Notion-CSV import, ⌘K recents
 
 ## License
 
